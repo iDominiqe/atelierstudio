@@ -1,6 +1,12 @@
 export type StudioMode = 'canvas' | 'apparel';
 
-export type CanvasSizeId = '30x40' | '50x70' | '70x100' | '100x150';
+export type LanguageCode = 'ru' | 'ro' | 'en';
+
+export type CanvasOrientation = 'portrait' | 'landscape';
+
+export type TextureFitMode = 'cover' | 'contain';
+
+export type CanvasSizeId = '30x40' | '50x70' | '70x100' | '100x150' | 'custom';
 
 export type FrameStyleId =
   | 'frameless'
@@ -31,6 +37,15 @@ export type ScaleReferenceMode = 'interior' | 'human' | 'none';
 
 export type GarmentTypeId = 'tshirt' | 'hoodie';
 
+export type TShirtCutId = 'regular-tshirt' | 'oversized-tshirt' | 'slim-tshirt';
+
+export type HoodieCutId =
+  | 'classic-hoodie'
+  | 'oversized-hoodie'
+  | 'crewneck-sweatshirt';
+
+export type GarmentCutId = TShirtCutId | HoodieCutId;
+
 export type GarmentColorId =
   | 'optic-white'
   | 'jet-black'
@@ -49,7 +64,7 @@ export type PrintPlacementId =
 export type CameraAnglePreset = 'front' | 'angle45' | 'macro' | 'rear' | 'sleeve';
 
 export interface CanvasSizeOption {
-  id: CanvasSizeId;
+  id: Exclude<CanvasSizeId, 'custom'>;
   label: string;
   widthCm: number;
   heightCm: number;
@@ -57,6 +72,21 @@ export interface CanvasSizeOption {
   height3D: number;
   basePrice: number;
   recommendedRoom: string;
+}
+
+export interface ResolvedCanvasDimensions {
+  sizeId: CanvasSizeId;
+  orientation: CanvasOrientation;
+  widthCm: number;
+  heightCm: number;
+  width3D: number;
+  height3D: number;
+  areaCm2: number;
+  perimeterCm: number;
+  aspectRatio: number;
+  basePrice: number;
+  frameScaleMultiplier: number;
+  label: string;
 }
 
 export interface FrameStyleOption {
@@ -108,6 +138,25 @@ export interface GarmentTypeOption {
   subtitle: string;
   gsm: string;
   basePrice: number;
+}
+
+export interface GarmentCutOption {
+  id: GarmentCutId;
+  garmentType: GarmentTypeId;
+  priceDelta: number;
+  chestWidth: number;
+  waistWidth: number;
+  hemWidth: number;
+  torsoLength: number;
+  depthZ: number;
+  shoulderDrop: number;
+  sleeveAngle: number;
+  sleeveRadiusTop: number;
+  sleeveRadiusCuff: number;
+  sleeveLength: number;
+  hasHood: boolean;
+  hasKangarooPocket: boolean;
+  collarThickness: number;
 }
 
 export interface GarmentColorOption {

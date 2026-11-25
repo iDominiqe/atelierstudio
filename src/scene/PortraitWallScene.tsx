@@ -4,14 +4,13 @@ import * as THREE from 'three';
 import {
   BACKLIGHT_OPTIONS,
   CANVAS_FINISHES,
-  CANVAS_SIZES,
   FRAME_STYLES,
 } from '../data/studioCatalog';
 import type {
   BacklightModeId,
   CanvasFinishId,
-  CanvasSizeId,
   FrameStyleId,
+  ResolvedCanvasDimensions,
   RoomLightingMode,
   ScaleReferenceMode,
 } from '../types/studio';
@@ -23,7 +22,7 @@ import {
 
 interface PortraitWallSceneProps {
   artworkTexture: THREE.Texture;
-  canvasSizeId: CanvasSizeId;
+  resolvedDims: ResolvedCanvasDimensions;
   frameStyleId: FrameStyleId;
   canvasFinishId: CanvasFinishId;
   backlightModeId: BacklightModeId;
@@ -33,14 +32,13 @@ interface PortraitWallSceneProps {
 
 export const PortraitWallScene: React.FC<PortraitWallSceneProps> = ({
   artworkTexture,
-  canvasSizeId,
+  resolvedDims,
   frameStyleId,
   canvasFinishId,
   backlightModeId,
   roomLighting,
   scaleReference,
 }) => {
-  const sizeOpt = CANVAS_SIZES.find((s) => s.id === canvasSizeId) ?? CANVAS_SIZES[1];
   const frameOpt = FRAME_STYLES.find((f) => f.id === frameStyleId) ?? FRAME_STYLES[1];
   const finishOpt =
     CANVAS_FINISHES.find((f) => f.id === canvasFinishId) ?? CANVAS_FINISHES[0];
@@ -55,7 +53,6 @@ export const PortraitWallScene: React.FC<PortraitWallSceneProps> = ({
   const oakTex = useMemo(() => getWoodGrainTexture('oak'), []);
   const walnutTex = useMemo(() => getWoodGrainTexture('walnut'), []);
 
-  // Soft radial halo texture for realistic wall LED diffusion
   const haloTex = useMemo(() => {
     const c = document.createElement('canvas');
     c.width = 256;
@@ -73,11 +70,10 @@ export const PortraitWallScene: React.FC<PortraitWallSceneProps> = ({
     return tex;
   }, []);
 
-  // Smooth animated dimensions
   const animDims = useRef({
-    w: sizeOpt.width3D,
-    h: sizeOpt.height3D,
-    centerY: Math.max(1.88, 0.72 + sizeOpt.height3D / 2),
+    w: resolvedDims.width3D,
+    h: resolvedDims.height3D,
+    centerY: Math.max(1.84, 0.74 + resolvedDims.height3D / 2),
   });
 
   const assemblyRef = useRef<THREE.Group>(null);
@@ -107,10 +103,10 @@ export const PortraitWallScene: React.FC<PortraitWallSceneProps> = ({
 
   useFrame(({ clock }, delta) => {
     const k = Math.min(1, delta * 7.5);
-    const targetCenterY = Math.max(1.86, 0.74 + sizeOpt.height3D / 2);
+    const targetCenterY = Math.max(1.84, 0.74 + resolvedDims.height3D / 2);
 
-    animDims.current.w = THREE.MathUtils.lerp(animDims.current.w, sizeOpt.width3D, k);
-    animDims.current.h = THREE.MathUtils.lerp(animDims.current.h, sizeOpt.height3D, k);
+    animDims.current.w = THREE.MathUtils.lerp(animDims.current.w, resolvedDims.width3D, k);
+    animDims.current.h = THREE.MathUtils.lerp(animDims.current.h, resolvedDims.height3D, k);
     animDims.current.centerY = THREE.MathUtils.lerp(
       animDims.current.centerY,
       targetCenterY,
@@ -125,9 +121,9 @@ export const PortraitWallScene: React.FC<PortraitWallSceneProps> = ({
       assemblyRef.current.position.y = cy;
     }
 
-    const matInset = frameOpt.hasInnerMat ? 0.12 : 0;
-    const artW = Math.max(0.3, w - matInset * 2);
-    const artH = Math.max(0.4, h - matInset * 2);
+    const matInset = frameOpt.hasInnerMat ? Math.min(0.11, Math.min(w, h) * 0.12) : 0;
+    const artW = Math.max(0.24, w - matInset * 2);
+    const artH = Math.max(0.24, h - matInset * 2);
 
     if (canvasBoxRef.current) {
       canvasBoxRef.current.scale.set(w, h, 1);
@@ -180,7 +176,6 @@ export const PortraitWallScene: React.FC<PortraitWallSceneProps> = ({
       }
     }
 
-    // Backlight halo & LED perimeter bars
     const outerW = w + bw * 2;
     const outerH = h + bw * 2;
     const pulse =
@@ -229,6 +224,8 @@ export const PortraitWallScene: React.FC<PortraitWallSceneProps> = ({
       ? walnutTex
       : null;
 
+  const humanX = -Math.min(1.85, resolvedDims.width3D / 2 + 0.46);
+
   return (
     <group>
       {/* --- ROOM LIGHTING --- */}
@@ -239,7 +236,6 @@ export const PortraitWallScene: React.FC<PortraitWallSceneProps> = ({
         groundColor={isNight ? '#09090b' : '#44403c'}
       />
 
-      {/* Daylight Architectural Gallery Key Light */}
       <directionalLight
         position={[3.5, 5.2, 4.8]}
         intensity={isNight ? 0.18 : 1.35}
@@ -256,14 +252,13 @@ export const PortraitWallScene: React.FC<PortraitWallSceneProps> = ({
         shadow-bias={-0.0004}
       />
 
-      {/* Overhead Museum Spotlight (dramatic in Night Mode, subtle fill in Day) */}
       <primitive object={spotTarget} />
       <spotLight
         ref={spotlightRef}
         position={[0, 4.35, 1.95]}
-        angle={0.52}
+        angle={0.56}
         penumbra={0.68}
-        intensity={isNight ? 36 : 9}
+        intensity={isNight ? 38 : 9}
         distance={11}
         decay={1.8}
         color="#ffe8c2"
@@ -274,9 +269,8 @@ export const PortraitWallScene: React.FC<PortraitWallSceneProps> = ({
       />
 
       {/* --- ARCHITECTURAL GALLERY WALL & FLOOR --- */}
-      {/* Main Feature Wall */}
       <mesh position={[0, 3.0, -0.04]} receiveShadow>
-        <boxGeometry args={[14, 6.2, 0.08]} />
+        <boxGeometry args={[16, 6.4, 0.08]} />
         <meshStandardMaterial
           map={wallTex}
           color={isNight ? '#565965' : '#ebe7df'}
@@ -285,15 +279,13 @@ export const PortraitWallScene: React.FC<PortraitWallSceneProps> = ({
         />
       </mesh>
 
-      {/* Subtle architectural baseboard */}
       <mesh position={[0, 0.075, 0.015]} receiveShadow>
-        <boxGeometry args={[14, 0.15, 0.035]} />
+        <boxGeometry args={[16, 0.15, 0.035]} />
         <meshStandardMaterial color={isNight ? '#1b1d24' : '#d6d1c7'} roughness={0.6} />
       </mesh>
 
-      {/* Gallery Floor (Polished Dark Travertine / Slate) */}
       <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0, 3.5]} receiveShadow>
-        <planeGeometry args={[14, 9]} />
+        <planeGeometry args={[16, 10]} />
         <meshStandardMaterial
           color={isNight ? '#121318' : '#2d2a26'}
           roughness={0.42}
@@ -304,10 +296,10 @@ export const PortraitWallScene: React.FC<PortraitWallSceneProps> = ({
       {/* Ceiling Track Rail & Museum Track Spot Fixtures */}
       <group position={[0, 4.45, 1.95]}>
         <mesh>
-          <boxGeometry args={[3.4, 0.05, 0.06]} />
+          <boxGeometry args={[3.6, 0.05, 0.06]} />
           <meshStandardMaterial color="#18181b" metalness={0.8} roughness={0.3} />
         </mesh>
-        {[-0.85, 0, 0.85].map((tx, idx) => (
+        {[-0.95, 0, 0.95].map((tx, idx) => (
           <group key={idx} position={[tx, -0.1, 0]} rotation={[0.62, 0, 0]}>
             <mesh>
               <cylinderGeometry args={[0.045, 0.055, 0.18, 16]} />
@@ -324,10 +316,9 @@ export const PortraitWallScene: React.FC<PortraitWallSceneProps> = ({
         ))}
       </group>
 
-      {/* Volumetric Spotlight Cone (visible in Night Museum Spotlight Mode) */}
       {isNight && (
         <mesh position={[0, 3.15, 1.02]} rotation={[-0.64, 0, 0]}>
-          <coneGeometry args={[1.25, 2.75, 32, 1, true]} />
+          <coneGeometry args={[1.35, 2.75, 32, 1, true]} />
           <meshBasicMaterial
             color="#fde68a"
             transparent
@@ -340,13 +331,11 @@ export const PortraitWallScene: React.FC<PortraitWallSceneProps> = ({
 
       {/* --- DYNAMIC 3D PORTRAIT CANVAS & PBR FRAME ASSEMBLY --- */}
       <group ref={assemblyRef} position={[0, 1.95, 0]}>
-        {/* Rear Wall Spacer / Mounting Chassis */}
         <mesh position={[0, 0, 0.018]} castShadow>
           <boxGeometry args={[0.42, 0.42, 0.03]} />
           <meshStandardMaterial color="#111317" roughness={0.7} />
         </mesh>
 
-        {/* Backlit Halo LED Wall Glow */}
         {hasBacklight && (
           <>
             <mesh ref={haloPlaneRef} position={[0, 0, 0.004]}>
@@ -379,7 +368,6 @@ export const PortraitWallScene: React.FC<PortraitWallSceneProps> = ({
           </>
         )}
 
-        {/* Stretched Canvas Core (unit 1x1x0.055 scaled smoothly) */}
         <mesh ref={canvasBoxRef} position={[0, 0, 0.048]} castShadow receiveShadow>
           <boxGeometry args={[1, 1, 0.052]} />
           <meshStandardMaterial
@@ -390,7 +378,6 @@ export const PortraitWallScene: React.FC<PortraitWallSceneProps> = ({
           />
         </mesh>
 
-        {/* Optional Museum White Passe-Partout Mat (for Natural Oak) */}
         {frameOpt.hasInnerMat && (
           <mesh ref={matPlaneRef} position={[0, 0, 0.075]} receiveShadow>
             <planeGeometry args={[1, 1]} />
@@ -398,7 +385,6 @@ export const PortraitWallScene: React.FC<PortraitWallSceneProps> = ({
           </mesh>
         )}
 
-        {/* Front Printed Portrait Canvas Surface with Matte vs Satin/Gloss Physics */}
         <mesh ref={artPlaneRef} position={[0, 0, 0.077]} receiveShadow>
           <planeGeometry args={[1, 1]} />
           <meshPhysicalMaterial
@@ -417,7 +403,6 @@ export const PortraitWallScene: React.FC<PortraitWallSceneProps> = ({
           />
         </mesh>
 
-        {/* 4-Piece PBR Frame Molding Rails */}
         {frameOpt.borderWidth > 0 && (
           <>
             {[railTopRef, railBottomRef, railLeftRef, railRightRef].map((refObj, idx) => (
@@ -434,7 +419,6 @@ export const PortraitWallScene: React.FC<PortraitWallSceneProps> = ({
           </>
         )}
 
-        {/* Inner Gilded Fillet Trim (for Classic Ornate Dark Walnut) */}
         {frameOpt.hasGoldFillet && (
           <>
             {[filletTopRef, filletBottomRef, filletLeftRef, filletRightRef].map(
@@ -449,7 +433,6 @@ export const PortraitWallScene: React.FC<PortraitWallSceneProps> = ({
         )}
       </group>
 
-      {/* Real-time Point Lights for Wall LED Ambient Bounce */}
       {hasBacklight && (
         <>
           <pointLight
@@ -472,21 +455,17 @@ export const PortraitWallScene: React.FC<PortraitWallSceneProps> = ({
       {/* --- SCALE REFERENCE: INTERIOR BENCH & PLANT OR 175cm HUMAN SILHOUETTE --- */}
       {scaleReference === 'interior' && (
         <group>
-          {/* Mid-century Gallery Leather Bench (160cm wide) */}
           <group position={[0, 0, 0.65]}>
-            {/* Cushioned leather seat */}
             <mesh position={[0, 0.42, 0]} castShadow receiveShadow>
               <boxGeometry args={[1.65, 0.1, 0.48]} />
               <meshStandardMaterial color="#3b261c" roughness={0.55} metalness={0.05} />
             </mesh>
-            {/* Tufted seat seams */}
             {[-0.4, 0, 0.4].map((sx) => (
               <mesh key={sx} position={[sx, 0.472, 0]}>
                 <boxGeometry args={[0.01, 0.008, 0.46]} />
                 <meshStandardMaterial color="#1f120d" roughness={0.8} />
               </mesh>
             ))}
-            {/* Brushed brass / dark steel legs */}
             {[
               [-0.72, -0.18],
               [0.72, -0.18],
@@ -500,18 +479,15 @@ export const PortraitWallScene: React.FC<PortraitWallSceneProps> = ({
             ))}
           </group>
 
-          {/* Architectural Ceramic Planter + Sculpted Indoor Plant */}
-          <group position={[1.85, 0, 0.6]}>
+          <group position={[Math.max(1.85, resolvedDims.width3D / 2 + 0.55), 0, 0.6]}>
             <mesh position={[0, 0.24, 0]} castShadow receiveShadow>
               <cylinderGeometry args={[0.22, 0.16, 0.48, 24]} />
               <meshStandardMaterial color="#d6d3cd" roughness={0.75} />
             </mesh>
-            {/* Soil */}
             <mesh position={[0, 0.46, 0]}>
               <cylinderGeometry args={[0.2, 0.2, 0.04, 20]} />
               <meshStandardMaterial color="#2c1e16" roughness={0.95} />
             </mesh>
-            {/* Sculpted stems & leaves */}
             {[
               { rot: [0.18, 0.2, 0.2], h: 0.72, leafY: 0.85, leafR: 0.22 },
               { rot: [-0.22, 1.4, 0.15], h: 0.88, leafY: 1.02, leafR: 0.26 },
@@ -540,14 +516,11 @@ export const PortraitWallScene: React.FC<PortraitWallSceneProps> = ({
       )}
 
       {scaleReference === 'human' && (
-        <group position={[-(sizeOpt.width3D / 2 + 0.44), 0, 0.55]}>
-          {/* 175 cm Architectural Gallery Visitor Silhouette */}
-          {/* Base shadow disc */}
+        <group position={[humanX, 0, 0.55]}>
           <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.006, 0]}>
             <circleGeometry args={[0.28, 32]} />
             <meshBasicMaterial color="#fbbf24" transparent opacity={0.22} />
           </mesh>
-          {/* Legs */}
           <mesh position={[-0.085, 0.44, 0]} castShadow>
             <capsuleGeometry args={[0.055, 0.74, 8, 16]} />
             <meshPhysicalMaterial
@@ -566,7 +539,6 @@ export const PortraitWallScene: React.FC<PortraitWallSceneProps> = ({
               opacity={0.78}
             />
           </mesh>
-          {/* Torso */}
           <mesh position={[0, 1.15, 0]} castShadow>
             <capsuleGeometry args={[0.16, 0.46, 10, 20]} />
             <meshPhysicalMaterial
@@ -576,7 +548,6 @@ export const PortraitWallScene: React.FC<PortraitWallSceneProps> = ({
               opacity={0.78}
             />
           </mesh>
-          {/* Arms */}
           <mesh position={[-0.22, 1.11, 0]} rotation={[0, 0, 0.12]} castShadow>
             <capsuleGeometry args={[0.042, 0.46, 8, 14]} />
             <meshPhysicalMaterial
@@ -595,7 +566,6 @@ export const PortraitWallScene: React.FC<PortraitWallSceneProps> = ({
               opacity={0.78}
             />
           </mesh>
-          {/* Head (top reaches 1.75 m!) */}
           <mesh position={[0, 1.62, 0]} castShadow>
             <sphereGeometry args={[0.125, 20, 20]} />
             <meshPhysicalMaterial
@@ -605,7 +575,6 @@ export const PortraitWallScene: React.FC<PortraitWallSceneProps> = ({
               opacity={0.82}
             />
           </mesh>
-          {/* Architectural 175 cm Vertical Scale Rule */}
           <mesh position={[-0.36, 0.875, 0]}>
             <boxGeometry args={[0.008, 1.75, 0.008]} />
             <meshBasicMaterial color="#fbbf24" />

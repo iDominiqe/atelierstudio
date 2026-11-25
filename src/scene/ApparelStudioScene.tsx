@@ -1,9 +1,11 @@
-import React, { useMemo, useRef } from 'react';
+import React, { useEffect, useMemo, useRef } from 'react';
 import { useFrame } from '@react-three/fiber';
 import * as THREE from 'three';
-import { GARMENT_COLORS } from '../data/studioCatalog';
+import { GARMENT_COLORS, GARMENT_CUTS } from '../data/studioCatalog';
 import type {
   GarmentColorId,
+  GarmentCutId,
+  GarmentCutOption,
   GarmentTypeId,
   PrintPlacementId,
   RoomLightingMode,
@@ -13,6 +15,7 @@ import { getCottonFabricNormalMap } from './proceduralTextures';
 interface ApparelStudioSceneProps {
   artworkTexture: THREE.Texture;
   garmentType: GarmentTypeId;
+  garmentCutId: GarmentCutId;
   garmentColorId: GarmentColorId;
   printPlacement: PrintPlacementId;
   printScale: number;
@@ -21,58 +24,74 @@ interface ApparelStudioSceneProps {
 }
 
 /**
- * Generates an anatomical sculpted 3D garment torso geometry with natural fabric drape folds,
- * tapered waist, shoulder slope, and smooth surface normals so prints sit cleanly on chest/back.
+ * Generates an anatomically tailored 3D torso geometry driven by the active cut's chest,
+ * waist, hem, depth, shoulder drop, and organic fabric tension folds.
  */
-function buildTorsoGeometry(isHoodie: boolean): THREE.BufferGeometry {
+function buildTailoredTorsoGeometry(cut: GarmentCutOption): THREE.BufferGeometry {
   const segX = 64;
   const segY = 48;
-  const geo = new THREE.CylinderGeometry(1, 1, 1.38, segX, segY, false);
+  const geo = new THREE.CylinderGeometry(1, 1, cut.torsoLength, segX, segY, false);
   const pos = geo.attributes.position;
+  const halfLen = cut.torsoLength * 0.5;
 
   for (let i = 0; i < pos.count; i++) {
     const x = pos.getX(i);
-    const y = pos.getY(i); // -0.69 to +0.69
+    const y = pos.getY(i);
     const z = pos.getZ(i);
 
-    const t = (y + 0.69) / 1.38; // 0 (hem) -> 1 (shoulders/collar)
+    const t = (y + halfLen) / cut.torsoLength; // 0 (hem) -> 1 (collar/shoulder)
     const angle = Math.atan2(z, x);
 
-    // Anatomical width (X) and depth (Z) profile from hem to chest to shoulders
-    let rx = 0.34;
-    let rz = 0.21;
+    let rx = cut.waistWidth;
+    let rz = cut.depthZ * 0.9;
 
     if (t < 0.14) {
-      // Ribbed waistband / hem taper
+      // Ribbed hem taper
       const k = t / 0.14;
-      rx = THREE.MathUtils.lerp(isHoodie ? 0.31 : 0.33, 0.34, k);
-      rz = THREE.MathUtils.lerp(isHoodie ? 0.19 : 0.20, 0.21, k);
-    } else if (t < 0.65) {
-      // Mid-torso to chest swell
-      const k = (t - 0.14) / 0.51;
-      rx = THREE.MathUtils.lerp(0.34, 0.385, k);
-      rz = THREE.MathUtils.lerp(0.21, 0.235, Math.sin(k * Math.PI * 0.65));
+      rx = THREE.MathUtils.lerp(cut.hemWidth, cut.waistWidth, k);
+      rz = THREE.MathUtils.lerp(cut.depthZ * 0.85, cut.depthZ * 0.92, k);
+    } else if (t < 0.64) {
+      // Mid-torso to pectoral chest contour
+      const k = (t - 0.14) / 0.5;
+      const smoothK = k * k * (3 - 2 * k);
+      rx = THREE.MathUtils.lerp(cut.waistWidth, cut.chestWidth, smoothK);
+      rz = THREE.MathUtils.lerp(
+        cut.depthZ * 0.92,
+        cut.depthZ,
+        Math.sin(k * Math.PI * 0.62)
+      );
     } else {
-      // Upper chest to shoulder/neck taper
-      const k = (t - 0.65) / 0.35;
-      rx = THREE.MathUtils.lerp(0.385, 0.31, Math.pow(k, 1.35));
-      rz = THREE.MathUtils.lerp(0.23, 0.175, Math.pow(k, 1.25));
+      // Upper chest to sculpted shoulder yoke taper
+      const k = (t - 0.64) / 0.36;
+      rx = THREE.MathUtils.lerp(cut.chestWidth, cut.chestWidth * 0.78, Math.pow(k, 1.4));
+      rz = THREE.MathUtils.lerp(cut.depthZ, cut.depthZ * 0.74, Math.pow(k, 1.3));
     }
 
-    // Subtle chest contour on front (+Z) and vertical cloth drape folds near lower torso
+    // Anatomical pectoral swell on front (+Z) & scapula curve on back (-Z)
     const frontFactor = Math.max(0, Math.sin(angle));
+    const backFactor = Math.max(0, -Math.sin(angle));
     const chestBoost =
-      frontFactor * Math.exp(-Math.pow((t - 0.68) / 0.22, 2)) * 0.022;
+      frontFactor * Math.exp(-Math.pow((t - 0.7) / 0.2, 2)) * (cut.depthZ * 0.1);
+    const upperBackCurve =
+      backFactor * Math.exp(-Math.pow((t - 0.74) / 0.22, 2)) * (cut.depthZ * 0.06);
+
+    // Subtle organic vertical drape folds near sides and lower hem
+    const sideWeight = Math.pow(Math.abs(Math.cos(angle)), 1.5);
     const drapeRipple =
-      Math.sin(angle * 7 + t * 2.5) * 0.0055 * (1 - Math.abs(t - 0.45));
+      (Math.sin(angle * 8 + t * 2.4) * 0.0048 +
+        Math.cos(angle * 4 - t * 3.1) * 0.0032 * sideWeight) *
+      (1 - t * 0.35);
 
-    // Slight shoulder slope at very top edge
-    const shoulderDrop = t > 0.88 ? -Math.pow(Math.abs(Math.cos(angle)), 2) * 0.055 * ((t - 0.88) / 0.12) : 0;
+    // Tailored shoulder slope
+    const shoulderDrop =
+      t > 0.86
+        ? -Math.pow(Math.abs(Math.cos(angle)), 2) * cut.shoulderDrop * ((t - 0.86) / 0.14)
+        : 0;
 
-    // Neck scoop on front top
+    // Anatomical neck scoop on front
     const neckScoop =
-      t > 0.91 && frontFactor > 0.2
-        ? -frontFactor * 0.055 * ((t - 0.91) / 0.09)
+      t > 0.9 && frontFactor > 0.2
+        ? -frontFactor * 0.058 * ((t - 0.9) / 0.1)
         : 0;
 
     const r = Math.hypot(x, z);
@@ -83,7 +102,7 @@ function buildTorsoGeometry(isHoodie: boolean): THREE.BufferGeometry {
         i,
         nx * (rx + drapeRipple),
         y + shoulderDrop + neckScoop,
-        nz * (rz + chestBoost + drapeRipple)
+        nz * (rz + chestBoost + upperBackCurve + drapeRipple)
       );
     }
   }
@@ -92,22 +111,17 @@ function buildTorsoGeometry(isHoodie: boolean): THREE.BufferGeometry {
   return geo;
 }
 
-/**
- * Builds a slightly curved conformal print surface that hugs the front chest, back torso,
- * or left chest without z-fighting.
- */
 function buildConformalPrintPatch(
   width: number,
   height: number,
   radiusZ: number,
   curveAmount: number
 ): THREE.BufferGeometry {
-  const geo = new THREE.PlaneGeometry(width, height, 20, 20);
+  const geo = new THREE.PlaneGeometry(width, height, 22, 22);
   const pos = geo.attributes.position;
   for (let i = 0; i < pos.count; i++) {
     const px = pos.getX(i);
     const py = pos.getY(i);
-    // Curve gently back along X and slightly follow chest/torso vertical contour along Y
     const curveX = -Math.pow(px / (width * 0.6 + 0.01), 2) * curveAmount;
     const contourY = Math.sin(((py + height * 0.5) / height) * Math.PI) * 0.008;
     pos.setZ(i, radiusZ + curveX + contourY);
@@ -119,72 +133,117 @@ function buildConformalPrintPatch(
 export const ApparelStudioScene: React.FC<ApparelStudioSceneProps> = ({
   artworkTexture,
   garmentType,
+  garmentCutId,
   garmentColorId,
   printPlacement,
   printScale,
   printOffsetY,
   roomLighting,
 }) => {
-  const isHoodie = garmentType === 'hoodie';
+  const cutOpt =
+    GARMENT_CUTS.find((c) => c.id === garmentCutId) ??
+    GARMENT_CUTS.find((c) => c.garmentType === garmentType) ??
+    GARMENT_CUTS[0];
+
+  const isLongSleeve = cutOpt.garmentType === 'hoodie';
+  const isCrewneckSweatshirt = cutOpt.id === 'crewneck-sweatshirt';
   const isNight = roomLighting === 'spotlight-night';
   const colorOpt =
     GARMENT_COLORS.find((c) => c.id === garmentColorId) ?? GARMENT_COLORS[1];
 
   const cottonNormal = useMemo(() => getCottonFabricNormalMap(), []);
 
-  const tshirtTorso = useMemo(() => buildTorsoGeometry(false), []);
-  const hoodieTorso = useMemo(() => buildTorsoGeometry(true), []);
+  // Dynamically generate and dispose torso geometry per cut
+  const torsoGeo = useMemo(() => buildTailoredTorsoGeometry(cutOpt), [cutOpt]);
+  useEffect(() => {
+    return () => {
+      torsoGeo.dispose();
+    };
+  }, [torsoGeo]);
 
-  // Conformal print geometries for each placement zone
-  const centerChestPatch = useMemo(() => buildConformalPrintPatch(0.36, 0.48, 0.012, 0.032), []);
-  const leftChestPatch = useMemo(() => buildConformalPrintPatch(0.145, 0.19, 0.012, 0.012), []);
-  const fullBackPatch = useMemo(() => buildConformalPrintPatch(0.42, 0.56, 0.012, 0.038), []);
-  const sleevePatch = useMemo(() => buildConformalPrintPatch(0.14, 0.18, 0.012, 0.016), []);
+  // Conformal print geometries
+  const centerChestPatch = useMemo(
+    () => buildConformalPrintPatch(0.35, 0.46, 0.014, 0.03),
+    []
+  );
+  const leftChestPatch = useMemo(
+    () => buildConformalPrintPatch(0.14, 0.185, 0.014, 0.012),
+    []
+  );
+  const fullBackPatch = useMemo(
+    () => buildConformalPrintPatch(0.41, 0.54, 0.014, 0.036),
+    []
+  );
+  const sleevePatch = useMemo(
+    () => buildConformalPrintPatch(0.135, 0.175, 0.014, 0.015),
+    []
+  );
 
-  // Sculpted 3D Hood geometry using Lathe/Tube arch
   const hoodArchGeo = useMemo(() => {
     const curve = new THREE.CatmullRomCurve3([
-      new THREE.Vector3(-0.16, 0.02, 0.06),
-      new THREE.Vector3(-0.17, 0.22, -0.06),
+      new THREE.Vector3(-0.165, 0.02, 0.055),
+      new THREE.Vector3(-0.175, 0.22, -0.06),
       new THREE.Vector3(0, 0.34, -0.14),
-      new THREE.Vector3(0.17, 0.22, -0.06),
-      new THREE.Vector3(0.16, 0.02, 0.06),
+      new THREE.Vector3(0.175, 0.22, -0.06),
+      new THREE.Vector3(0.165, 0.02, 0.055),
     ]);
-    return new THREE.TubeGeometry(curve, 28, 0.095, 16, false);
+    return new THREE.TubeGeometry(curve, 28, 0.095, 18, false);
   }, []);
 
   const hangerRef = useRef<THREE.Group>(null);
-  useFrame(({ clock }) => {
+  const animScaleRef = useRef(0.95);
+
+  useFrame(({ clock }, delta) => {
     if (hangerRef.current) {
-      // Subtle floating studio breath motion
-      hangerRef.current.position.y = 1.62 + Math.sin(clock.getElapsedTime() * 1.2) * 0.012;
+      hangerRef.current.position.y =
+        1.62 + Math.sin(clock.getElapsedTime() * 1.2) * 0.011;
+      // Subtle damped morph pop when switching cuts
+      animScaleRef.current = THREE.MathUtils.lerp(
+        animScaleRef.current,
+        1.0,
+        Math.min(1, delta * 9)
+      );
+      hangerRef.current.scale.setScalar(animScaleRef.current);
     }
   });
 
-  // Determine active print transform on the garment (chest/back on torso; sleeve mounted inside left sleeve)
-  const yShift = (printOffsetY / 100) * 0.45; // -15..+15 cm -> meters
-  let printPos: [number, number, number] = [0, 0.18 + yShift, 0.238];
+  useEffect(() => {
+    animScaleRef.current = 0.94;
+  }, [garmentCutId]);
+
+  const halfTorso = cutOpt.torsoLength * 0.5;
+  const frontChestZ = cutOpt.depthZ + 0.012;
+  const backTorsoZ = -(cutOpt.depthZ + 0.008);
+
+  const yShift = (printOffsetY / 100) * 0.44;
+  let printPos: [number, number, number] = [0, 0.18 + yShift, frontChestZ];
   let printRot: [number, number, number] = [-0.04, 0, 0];
   let printGeo = centerChestPatch;
 
   if (printPlacement === 'left-chest') {
-    printPos = [0.145, 0.34 + yShift * 0.65, 0.212];
+    printPos = [cutOpt.chestWidth * 0.38, 0.34 + yShift * 0.65, frontChestZ - 0.026];
     printRot = [-0.05, 0.34, 0];
     printGeo = leftChestPatch;
   } else if (printPlacement === 'full-back') {
-    printPos = [0, 0.16 + yShift, -0.236];
+    printPos = [0, 0.16 + yShift, backTorsoZ];
     printRot = [0.02, Math.PI, 0];
     printGeo = fullBackPatch;
   }
 
+  const shoulderPivotX =
+    cutOpt.id === 'oversized-tshirt' || cutOpt.id === 'oversized-hoodie'
+      ? cutOpt.chestWidth * 0.84
+      : cutOpt.chestWidth * 0.8;
+  const shoulderPivotY = halfTorso - 0.18 - cutOpt.shoulderDrop * 0.45;
+
   const fabricMatProps = {
     color: colorOpt.hex,
     normalMap: cottonNormal,
-    normalScale: new THREE.Vector2(0.45, 0.45),
+    normalScale: new THREE.Vector2(0.48, 0.48),
     roughness: colorOpt.roughness,
     metalness: 0.02,
-    sheen: 0.45,
-    sheenRoughness: 0.78,
+    sheen: 0.46,
+    sheenRoughness: 0.76,
     sheenColor: '#ffffff',
   };
 
@@ -197,7 +256,6 @@ export const ApparelStudioScene: React.FC<ApparelStudioSceneProps> = ({
         color="#ffffff"
         groundColor="#1e293b"
       />
-      {/* Key Softbox Light */}
       <directionalLight
         position={[3.2, 4.4, 4.2]}
         intensity={isNight ? 1.55 : 1.35}
@@ -207,9 +265,7 @@ export const ApparelStudioScene: React.FC<ApparelStudioSceneProps> = ({
         shadow-mapSize-height={2048}
         shadow-bias={-0.0004}
       />
-      {/* Cool Studio Rim Light for crisp fabric fold separation */}
       <directionalLight position={[-3.4, 3.2, -3.5]} intensity={1.1} color="#bae6fd" />
-      {/* Warm Accent Back-Rim */}
       <spotLight
         position={[0, 4.5, -2.6]}
         angle={0.6}
@@ -218,7 +274,7 @@ export const ApparelStudioScene: React.FC<ApparelStudioSceneProps> = ({
         color="#fde68a"
       />
 
-      {/* --- CYCLORAMA STUDIO PEDESTAL & BACKDROP --- */}
+      {/* --- CYCLORAMA STUDIO PEDESTAL --- */}
       <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0, 0]} receiveShadow>
         <circleGeometry args={[9, 64]} />
         <meshStandardMaterial
@@ -228,7 +284,6 @@ export const ApparelStudioScene: React.FC<ApparelStudioSceneProps> = ({
         />
       </mesh>
 
-      {/* Elevated Atelier Stage Podium */}
       <group position={[0, 0.09, 0]}>
         <mesh receiveShadow castShadow>
           <cylinderGeometry args={[1.15, 1.24, 0.18, 48]} />
@@ -238,14 +293,12 @@ export const ApparelStudioScene: React.FC<ApparelStudioSceneProps> = ({
             metalness={0.45}
           />
         </mesh>
-        {/* Glowing amber studio ring around podium */}
         <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.092, 0]}>
           <ringGeometry args={[1.08, 1.11, 64]} />
           <meshBasicMaterial color="#f59e0b" toneMapped={false} />
         </mesh>
       </group>
 
-      {/* Architectural Mannequin Stand Pole */}
       <mesh position={[0, 0.72, 0]} castShadow>
         <cylinderGeometry args={[0.025, 0.032, 1.1, 16]} />
         <meshStandardMaterial color="#18181b" metalness={0.88} roughness={0.25} />
@@ -255,20 +308,27 @@ export const ApparelStudioScene: React.FC<ApparelStudioSceneProps> = ({
         <meshStandardMaterial color="#d4af37" metalness={0.9} roughness={0.24} />
       </mesh>
 
-      {/* --- 3D GARMENT ASSEMBLY (T-SHIRT OR PULLOVER HOODIE) --- */}
+      {/* --- TAILORED 3D GARMENT ASSEMBLY --- */}
       <group ref={hangerRef} position={[0, 1.62, 0]}>
-        {/* Torso Mesh */}
-        <mesh
-          geometry={isHoodie ? hoodieTorso : tshirtTorso}
-          castShadow
-          receiveShadow
-        >
+        {/* Sculpted Torso */}
+        <mesh geometry={torsoGeo} castShadow receiveShadow>
           <meshPhysicalMaterial {...fabricMatProps} />
         </mesh>
 
-        {/* Ribbed Waistband Hem (prominent on Hoodie) */}
-        <mesh position={[0, -0.66, 0]} scale={[1.02, 1, 0.62]} castShadow>
-          <cylinderGeometry args={[0.315, 0.305, 0.11, 36]} />
+        {/* Ribbed Waistband Hem */}
+        <mesh
+          position={[0, -halfTorso + 0.035, 0]}
+          scale={[1.01, 1, (cutOpt.depthZ * 0.86) / Math.max(0.1, cutOpt.hemWidth)]}
+          castShadow
+        >
+          <cylinderGeometry
+            args={[
+              cutOpt.hemWidth * 1.005,
+              cutOpt.hemWidth * 0.98,
+              isLongSleeve ? 0.11 : 0.045,
+              48,
+            ]}
+          />
           <meshPhysicalMaterial
             {...fabricMatProps}
             roughness={Math.min(0.95, colorOpt.roughness + 0.06)}
@@ -276,51 +336,82 @@ export const ApparelStudioScene: React.FC<ApparelStudioSceneProps> = ({
         </mesh>
 
         {/* Ribbed Crewneck Collar */}
-        <mesh position={[0, 0.635, 0.01]} rotation={[Math.PI / 2 + 0.14, 0, 0]} scale={[1, 0.85, 1]} castShadow>
-          <torusGeometry args={[0.155, 0.032, 16, 36]} />
+        <mesh
+          position={[0, halfTorso - 0.045, 0.01]}
+          rotation={[Math.PI / 2 + 0.15, 0, 0]}
+          scale={[1, 0.84, 1]}
+          castShadow
+        >
+          <torusGeometry args={[0.155, cutOpt.collarThickness, 18, 40]} />
           <meshPhysicalMaterial {...fabricMatProps} />
         </mesh>
 
-        {/* Inner Neck Dark Lining + Woven Atelier Brand Tag */}
-        <mesh position={[0, 0.615, -0.02]} rotation={[Math.PI / 2 + 0.1, 0, 0]}>
+        {/* Classic Sweatshirt V-Notch Gusset Stitch Detail */}
+        {isCrewneckSweatshirt && (
+          <mesh position={[0, halfTorso - 0.115, frontChestZ - 0.056]} rotation={[-0.22, 0, 0]}>
+            <coneGeometry args={[0.045, 0.075, 3]} />
+            <meshPhysicalMaterial
+              {...fabricMatProps}
+              roughness={Math.min(0.96, colorOpt.roughness + 0.07)}
+            />
+          </mesh>
+        )}
+
+        {/* Inner Neck Tape & Woven Atelier Brand Label */}
+        <mesh position={[0, halfTorso - 0.065, -0.015]} rotation={[Math.PI / 2 + 0.1, 0, 0]}>
           <cylinderGeometry args={[0.142, 0.142, 0.06, 24, 1, true]} />
           <meshStandardMaterial color="#111318" side={THREE.DoubleSide} roughness={0.9} />
         </mesh>
-        <mesh position={[0, 0.61, -0.115]}>
-          <boxGeometry args={[0.08, 0.04, 0.008]} />
-          <meshStandardMaterial color="#d4af37" metalness={0.7} roughness={0.3} />
+        <mesh position={[0, halfTorso - 0.07, -0.115]}>
+          <boxGeometry args={[0.08, 0.038, 0.008]} />
+          <meshStandardMaterial color="#d4af37" metalness={0.72} roughness={0.28} />
         </mesh>
 
-        {/* --- SLEEVES --- */}
-        {!isHoodie ? (
+        {/* --- SYMMETRIC TAILORED SLEEVES --- */}
+        {!isLongSleeve ? (
           <>
-            {/* Crewneck T-Shirt Symmetric Short Sleeves (Left +X and Right -X) */}
             {[1, -1].map((side) => (
               <group
                 key={side}
-                position={[side * 0.31, 0.51, 0.01]}
-                rotation={[0.03, 0, side * 0.58]}
+                position={[side * shoulderPivotX, shoulderPivotY, 0.01]}
+                rotation={[0.03, 0, side * cutOpt.sleeveAngle]}
               >
-                {/* Shoulder cap blend */}
+                {/* Shoulder Seam Piping */}
+                <mesh position={[0, 0.01, 0]} rotation={[Math.PI / 2, 0, 0]}>
+                  <torusGeometry args={[cutOpt.sleeveRadiusTop * 0.98, 0.008, 8, 28]} />
+                  <meshPhysicalMaterial {...fabricMatProps} />
+                </mesh>
                 <mesh position={[0, -0.02, 0]} castShadow receiveShadow>
-                  <sphereGeometry args={[0.125, 24, 18]} />
+                  <sphereGeometry args={[cutOpt.sleeveRadiusTop, 24, 18]} />
                   <meshPhysicalMaterial {...fabricMatProps} />
                 </mesh>
-                {/* Main short sleeve */}
-                <mesh position={[0, -0.17, 0]} castShadow receiveShadow>
-                  <cylinderGeometry args={[0.124, 0.11, 0.32, 32]} />
+                <mesh position={[0, -cutOpt.sleeveLength * 0.5, 0]} castShadow receiveShadow>
+                  <cylinderGeometry
+                    args={[
+                      cutOpt.sleeveRadiusTop,
+                      cutOpt.sleeveRadiusCuff,
+                      cutOpt.sleeveLength,
+                      36,
+                    ]}
+                  />
                   <meshPhysicalMaterial {...fabricMatProps} />
                 </mesh>
-                {/* Sleeve cuff seam */}
-                <mesh position={[0, -0.325, 0]} rotation={[Math.PI / 2, 0, 0]}>
-                  <torusGeometry args={[0.109, 0.01, 10, 28]} />
+                <mesh
+                  position={[0, -cutOpt.sleeveLength, 0]}
+                  rotation={[Math.PI / 2, 0, 0]}
+                >
+                  <torusGeometry args={[cutOpt.sleeveRadiusCuff, 0.01, 10, 28]} />
                   <meshPhysicalMaterial {...fabricMatProps} />
                 </mesh>
-                {/* Conformal Sleeve Print when Left Sleeve (+X) is active */}
+
                 {side === 1 && printPlacement === 'sleeve' && (
                   <mesh
                     geometry={sleevePatch}
-                    position={[0.108, -0.18 + yShift * 0.3, 0]}
+                    position={[
+                      cutOpt.sleeveRadiusTop * 0.92,
+                      -cutOpt.sleeveLength * 0.52 + yShift * 0.25,
+                      0,
+                    ]}
                     rotation={[0, Math.PI / 2, 0]}
                     scale={[printScale, printScale, 1]}
                   >
@@ -339,38 +430,73 @@ export const ApparelStudioScene: React.FC<ApparelStudioSceneProps> = ({
           </>
         ) : (
           <>
-            {/* Pullover Hoodie Symmetric Long Sleeves with Ribbed Cuffs */}
             {[1, -1].map((side) => (
               <group
                 key={side}
-                position={[side * 0.31, 0.50, 0.01]}
-                rotation={[0.04, 0, side * 0.34]}
+                position={[side * shoulderPivotX, shoulderPivotY, 0.01]}
+                rotation={[0.04, 0, side * cutOpt.sleeveAngle]}
               >
-                {/* Shoulder cap blend */}
+                <mesh position={[0, 0.01, 0]} rotation={[Math.PI / 2, 0, 0]}>
+                  <torusGeometry args={[cutOpt.sleeveRadiusTop * 0.98, 0.009, 8, 28]} />
+                  <meshPhysicalMaterial {...fabricMatProps} />
+                </mesh>
                 <mesh position={[0, -0.02, 0]} castShadow receiveShadow>
-                  <sphereGeometry args={[0.135, 24, 18]} />
+                  <sphereGeometry args={[cutOpt.sleeveRadiusTop, 24, 18]} />
                   <meshPhysicalMaterial {...fabricMatProps} />
                 </mesh>
-                {/* Upper Arm */}
+                {/* Upper Sleeve */}
                 <mesh position={[0, -0.22, 0]} castShadow receiveShadow>
-                  <cylinderGeometry args={[0.134, 0.114, 0.44, 32]} />
+                  <cylinderGeometry
+                    args={[
+                      cutOpt.sleeveRadiusTop,
+                      cutOpt.sleeveRadiusTop * 0.85,
+                      0.44,
+                      36,
+                    ]}
+                  />
                   <meshPhysicalMaterial {...fabricMatProps} />
                 </mesh>
-                {/* Forearm */}
-                <mesh position={[0, -0.58, 0.03]} rotation={[-0.14, 0, 0]} castShadow receiveShadow>
-                  <cylinderGeometry args={[0.112, 0.082, 0.36, 32]} />
+                {/* Forearm with elbow drape */}
+                <mesh
+                  position={[0, -0.58, 0.03]}
+                  rotation={[-0.14, 0, 0]}
+                  castShadow
+                  receiveShadow
+                >
+                  <cylinderGeometry
+                    args={[
+                      cutOpt.sleeveRadiusTop * 0.84,
+                      cutOpt.sleeveRadiusCuff * 1.06,
+                      0.36,
+                      36,
+                    ]}
+                  />
                   <meshPhysicalMaterial {...fabricMatProps} />
                 </mesh>
                 {/* Ribbed Wrist Cuff */}
-                <mesh position={[0, -0.77, 0.055]} rotation={[-0.14, 0, 0]} castShadow>
-                  <cylinderGeometry args={[0.08, 0.074, 0.08, 28]} />
-                  <meshPhysicalMaterial {...fabricMatProps} />
+                <mesh
+                  position={[0, -0.77, 0.055]}
+                  rotation={[-0.14, 0, 0]}
+                  castShadow
+                >
+                  <cylinderGeometry
+                    args={[
+                      cutOpt.sleeveRadiusCuff * 1.02,
+                      cutOpt.sleeveRadiusCuff * 0.96,
+                      0.085,
+                      32,
+                    ]}
+                  />
+                  <meshPhysicalMaterial
+                    {...fabricMatProps}
+                    roughness={Math.min(0.95, colorOpt.roughness + 0.06)}
+                  />
                 </mesh>
-                {/* Conformal Sleeve Print when Left Sleeve (+X) is active */}
+
                 {side === 1 && printPlacement === 'sleeve' && (
                   <mesh
                     geometry={sleevePatch}
-                    position={[0.118, -0.24 + yShift * 0.4, 0]}
+                    position={[cutOpt.sleeveRadiusTop * 0.92, -0.24 + yShift * 0.35, 0]}
                     rotation={[0, Math.PI / 2, 0]}
                     scale={[printScale, printScale, 1]}
                   >
@@ -387,40 +513,59 @@ export const ApparelStudioScene: React.FC<ApparelStudioSceneProps> = ({
               </group>
             ))}
 
-            {/* Sculpted 3D Draped Hoodie Hood (flush at collar) */}
-            <group position={[0, 0.57, -0.035]}>
-              <mesh geometry={hoodArchGeo} castShadow receiveShadow>
-                <meshPhysicalMaterial {...fabricMatProps} />
-              </mesh>
-              {/* Hood back drape */}
-              <mesh position={[0, 0.10, -0.14]} rotation={[-0.35, 0, 0]} scale={[1.15, 1.32, 0.85]} castShadow>
-                <sphereGeometry args={[0.165, 24, 20]} />
-                <meshPhysicalMaterial {...fabricMatProps} />
-              </mesh>
-            </group>
+            {/* Sculpted Hood & Drawstrings (only when cutOpt.hasHood is true) */}
+            {cutOpt.hasHood && (
+              <>
+                <group position={[0, halfTorso - 0.12, -0.035]}>
+                  <mesh geometry={hoodArchGeo} castShadow receiveShadow>
+                    <meshPhysicalMaterial {...fabricMatProps} />
+                  </mesh>
+                  <mesh
+                    position={[0, 0.1, -0.14]}
+                    rotation={[-0.35, 0, 0]}
+                    scale={[1.15, 1.32, 0.85]}
+                    castShadow
+                  >
+                    <sphereGeometry args={[0.165, 24, 20]} />
+                    <meshPhysicalMaterial {...fabricMatProps} />
+                  </mesh>
+                </group>
 
-            {/* Drawstrings with Metallic Aglets (clearly forward of chest Z) */}
-            {[-0.055, 0.055].map((dx, i) => (
-              <group key={i} position={[dx, 0.57, 0.228]} rotation={[-0.05, 0, i === 0 ? 0.05 : -0.05]}>
-                <mesh position={[0, -0.14, 0]} castShadow>
-                  <cylinderGeometry args={[0.008, 0.008, 0.28, 10]} />
-                  <meshStandardMaterial
-                    color={colorOpt.id === 'jet-black' ? '#e4e4e7' : '#f4f4f5'}
-                    roughness={0.65}
-                  />
-                </mesh>
-                <mesh position={[0, -0.29, 0]} castShadow>
-                  <cylinderGeometry args={[0.011, 0.009, 0.036, 12]} />
-                  <meshStandardMaterial color="#d4af37" metalness={0.92} roughness={0.2} />
-                </mesh>
-              </group>
-            ))}
+                {/* Neatly spaced drawstrings that frame rather than cross Center Chest print */}
+                {[-0.082, 0.082].map((dx, i) => (
+                  <group
+                    key={i}
+                    position={[dx, halfTorso - 0.12, cutOpt.depthZ - 0.01]}
+                    rotation={[-0.06, 0, i === 0 ? 0.06 : -0.06]}
+                  >
+                    <mesh position={[0, -0.095, 0]} castShadow>
+                      <cylinderGeometry args={[0.007, 0.007, 0.19, 10]} />
+                      <meshStandardMaterial
+                        color={colorOpt.id === 'jet-black' ? '#e4e4e7' : '#f4f4f5'}
+                        roughness={0.65}
+                      />
+                    </mesh>
+                    <mesh position={[0, -0.195, 0]} castShadow>
+                      <cylinderGeometry args={[0.01, 0.008, 0.032, 12]} />
+                      <meshStandardMaterial color="#d4af37" metalness={0.92} roughness={0.2} />
+                    </mesh>
+                  </group>
+                ))}
+              </>
+            )}
 
             {/* Front Kangaroo Pouch Pocket */}
-            <mesh position={[0, -0.34, 0.215]} scale={[1.05, 0.72, 0.24]} castShadow receiveShadow>
-              <boxGeometry args={[0.42, 0.36, 0.18]} />
-              <meshPhysicalMaterial {...fabricMatProps} />
-            </mesh>
+            {cutOpt.hasKangarooPocket && (
+              <mesh
+                position={[0, -0.34, cutOpt.depthZ - 0.02]}
+                scale={[1.05, 0.72, 0.24]}
+                castShadow
+                receiveShadow
+              >
+                <boxGeometry args={[0.42, 0.36, 0.18]} />
+                <meshPhysicalMaterial {...fabricMatProps} />
+              </mesh>
+            )}
           </>
         )}
 

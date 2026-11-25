@@ -5,9 +5,11 @@ import {
   RotateCw,
   ShoppingBag,
 } from 'lucide-react';
-import type { CameraAnglePreset, StudioMode } from '../types/studio';
+import { TRANSLATIONS } from '../data/i18n';
+import type { CameraAnglePreset, LanguageCode, StudioMode } from '../types/studio';
 
 interface FullscreenPreviewBarProps {
+  lang: LanguageCode;
   mode: StudioMode;
   cameraAngle: CameraAnglePreset;
   onSelectCameraAngle: (angle: CameraAnglePreset) => void;
@@ -21,6 +23,7 @@ interface FullscreenPreviewBarProps {
 }
 
 export const FullscreenPreviewBar: React.FC<FullscreenPreviewBarProps> = ({
+  lang,
   mode,
   cameraAngle,
   onSelectCameraAngle,
@@ -32,19 +35,21 @@ export const FullscreenPreviewBar: React.FC<FullscreenPreviewBarProps> = ({
   onOpenCheckout,
   grandTotal,
 }) => {
+  const t = TRANSLATIONS[lang];
+
   const angles: { id: CameraAnglePreset; label: string }[] =
     mode === 'canvas'
       ? [
-          { id: 'front', label: 'Front Gallery' },
-          { id: 'angle45', label: '45° Perspective' },
-          { id: 'macro', label: 'Macro Weave' },
+          { id: 'front', label: t.camFront },
+          { id: 'angle45', label: t.camAngle45 },
+          { id: 'macro', label: t.camMacroWeave },
         ]
       : [
-          { id: 'front', label: 'Front Chest' },
-          { id: 'angle45', label: '45° Studio' },
-          { id: 'rear', label: 'Rear View' },
-          { id: 'sleeve', label: 'Sleeve View' },
-          { id: 'macro', label: 'Fabric Macro' },
+          { id: 'front', label: t.camFront },
+          { id: 'angle45', label: t.camAngle45 },
+          { id: 'rear', label: t.camRear },
+          { id: 'sleeve', label: t.camSleeve },
+          { id: 'macro', label: t.camMacro },
         ];
 
   return (
@@ -57,7 +62,6 @@ export const FullscreenPreviewBar: React.FC<FullscreenPreviewBarProps> = ({
 
       <div className="pointer-events-none fixed bottom-4 left-1/2 -translate-x-1/2 z-30 w-[94vw] max-w-4xl flex justify-center">
         <div className="pointer-events-auto studio-glass-elevated rounded-2xl p-1.5 flex flex-wrap items-center justify-center gap-1.5">
-          {/* Camera Angle Presets */}
           <div className="flex items-center gap-1 pr-1.5 border-r border-white/15">
             {angles.map((a) => {
               const active = cameraAngle === a.id && !autoRotate;
@@ -78,7 +82,6 @@ export const FullscreenPreviewBar: React.FC<FullscreenPreviewBarProps> = ({
             })}
           </div>
 
-          {/* 360 Auto-Spin */}
           <button
             type="button"
             onClick={onToggleAutoRotate}
@@ -90,37 +93,36 @@ export const FullscreenPreviewBar: React.FC<FullscreenPreviewBarProps> = ({
             }`}
           >
             <RotateCw className={`w-3.5 h-3.5 ${autoRotate ? 'animate-spin' : ''}`} />
-            <span>360° Orbit</span>
+            <span>{t.cam360}</span>
           </button>
 
-          {/* Snapshot / Save Preview Card */}
           <button
             type="button"
             onClick={onSaveSnapshot}
             className="px-3 py-1.5 rounded-xl text-[11px] font-semibold bg-white/10 hover:bg-white/20 text-white flex items-center gap-1.5 transition-all cursor-pointer whitespace-nowrap"
           >
             <Camera className="w-3.5 h-3.5 text-amber-400" />
-            <span>Save Preview Card</span>
+            <span>{t.savePreviewCard}</span>
           </button>
 
-          {/* Exit Preview */}
           <button
             type="button"
             onClick={onExitPreview}
             className="px-3 py-1.5 rounded-xl text-[11px] font-semibold bg-stone-800/80 hover:bg-stone-700 text-stone-200 flex items-center gap-1.5 transition-all cursor-pointer whitespace-nowrap"
           >
             <Minimize2 className="w-3.5 h-3.5" />
-            <span>Exit Preview</span>
+            <span>{t.exitPreview}</span>
           </button>
 
-          {/* Proceed to Order */}
           <button
             type="button"
             onClick={onOpenCheckout}
             className="px-3.5 py-1.5 rounded-xl text-[11px] font-bold bg-gradient-to-r from-amber-400 to-amber-500 hover:from-amber-300 hover:to-amber-400 text-stone-950 flex items-center gap-1.5 shadow-md shadow-amber-500/25 transition-all cursor-pointer whitespace-nowrap"
           >
             <ShoppingBag className="w-3.5 h-3.5" />
-            <span>Order · €{grandTotal}</span>
+            <span>
+              {t.orderShort} · €{grandTotal}
+            </span>
           </button>
         </div>
       </div>

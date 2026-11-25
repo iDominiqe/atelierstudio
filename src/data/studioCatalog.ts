@@ -1,3 +1,4 @@
+import * as THREE from 'three';
 import type {
   ArtFilterId,
   ArtFilterOption,
@@ -6,19 +7,25 @@ import type {
   BacklightOption,
   CanvasFinishId,
   CanvasFinishOption,
+  CanvasOrientation,
   CanvasSizeId,
   CanvasSizeOption,
   FrameStyleId,
   FrameStyleOption,
   GarmentColorOption,
+  GarmentCutId,
+  GarmentCutOption,
   GarmentTypeId,
   GarmentTypeOption,
+  LanguageCode,
   PriceLineItem,
   PriceSummary,
   PrintPlacementId,
   PrintPlacementOption,
+  ResolvedCanvasDimensions,
   StudioMode,
 } from '../types/studio';
+import { TRANSLATIONS } from './i18n';
 
 export const CANVAS_SIZES: CanvasSizeOption[] = [
   {
@@ -62,6 +69,77 @@ export const CANVAS_SIZES: CanvasSizeOption[] = [
     recommendedRoom: 'Grand Gallery Statement',
   },
 ];
+
+export function resolveCanvasDimensions(
+  sizeId: CanvasSizeId,
+  orientation: CanvasOrientation,
+  customWidthCm: number,
+  customHeightCm: number
+): ResolvedCanvasDimensions {
+  if (sizeId !== 'custom') {
+    const preset = CANVAS_SIZES.find((s) => s.id === sizeId) ?? CANVAS_SIZES[2];
+    const isLandscape = orientation === 'landscape';
+    const widthCm = isLandscape ? preset.heightCm : preset.widthCm;
+    const heightCm = isLandscape ? preset.widthCm : preset.heightCm;
+    const width3D = isLandscape ? preset.height3D : preset.width3D;
+    const height3D = isLandscape ? preset.width3D : preset.height3D;
+    return {
+      sizeId,
+      orientation,
+      widthCm,
+      heightCm,
+      width3D,
+      height3D,
+      areaCm2: widthCm * heightCm,
+      perimeterCm: 2 * (widthCm + heightCm),
+      aspectRatio: widthCm / heightCm,
+      basePrice: preset.basePrice,
+      frameScaleMultiplier: 1.0,
+      label: `${widthCm} × ${heightCm} cm`,
+    };
+  }
+
+  // Custom Dimensions (20 - 200 cm)
+  const wClamped = THREE.MathUtils.clamp(Math.round(customWidthCm || 80), 20, 200);
+  const hClamped = THREE.MathUtils.clamp(Math.round(customHeightCm || 110), 20, 200);
+  const widthCm = wClamped;
+  const heightCm = hClamped;
+  const aspectRatio = widthCm / heightCm;
+
+  // Map cm -> realistic 3D scene meters (keeping inside gallery wall & ceiling track bounds)
+  let width3D = THREE.MathUtils.clamp(0.42 + (widthCm / 100) * 1.4, 0.48, 3.25);
+  let height3D = width3D / aspectRatio;
+  if (height3D > 2.78) {
+    const down = 2.78 / height3D;
+    height3D = 2.78;
+    width3D *= down;
+  }
+  if (width3D > 3.25) {
+    const down = 3.25 / width3D;
+    width3D = 3.25;
+    height3D *= down;
+  }
+
+  const areaCm2 = widthCm * heightCm;
+  const perimeterCm = 2 * (widthCm + heightCm);
+  const basePrice = Math.round(24 + areaCm2 * 0.0105);
+  const frameScaleMultiplier = Math.max(0.75, perimeterCm / 240);
+
+  return {
+    sizeId: 'custom',
+    orientation: widthCm > heightCm ? 'landscape' : 'portrait',
+    widthCm,
+    heightCm,
+    width3D,
+    height3D,
+    areaCm2,
+    perimeterCm,
+    aspectRatio,
+    basePrice,
+    frameScaleMultiplier,
+    label: `${widthCm} × ${heightCm} cm`,
+  };
+}
 
 export const FRAME_STYLES: FrameStyleOption[] = [
   {
@@ -252,6 +330,119 @@ export const GARMENT_TYPES: GarmentTypeOption[] = [
   },
 ];
 
+export const GARMENT_CUTS: GarmentCutOption[] = [
+  // T-Shirt Cuts
+  {
+    id: 'regular-tshirt',
+    garmentType: 'tshirt',
+    priceDelta: 0,
+    chestWidth: 0.37,
+    waistWidth: 0.34,
+    hemWidth: 0.345,
+    torsoLength: 1.36,
+    depthZ: 0.225,
+    shoulderDrop: 0.045,
+    sleeveAngle: 0.54,
+    sleeveRadiusTop: 0.118,
+    sleeveRadiusCuff: 0.105,
+    sleeveLength: 0.32,
+    hasHood: false,
+    hasKangarooPocket: false,
+    collarThickness: 0.028,
+  },
+  {
+    id: 'oversized-tshirt',
+    garmentType: 'tshirt',
+    priceDelta: 6,
+    chestWidth: 0.435,
+    waistWidth: 0.425,
+    hemWidth: 0.43,
+    torsoLength: 1.44,
+    depthZ: 0.25,
+    shoulderDrop: 0.075,
+    sleeveAngle: 0.64,
+    sleeveRadiusTop: 0.142,
+    sleeveRadiusCuff: 0.132,
+    sleeveLength: 0.39,
+    hasHood: false,
+    hasKangarooPocket: false,
+    collarThickness: 0.036,
+  },
+  {
+    id: 'slim-tshirt',
+    garmentType: 'tshirt',
+    priceDelta: 0,
+    chestWidth: 0.345,
+    waistWidth: 0.285,
+    hemWidth: 0.305,
+    torsoLength: 1.34,
+    depthZ: 0.21,
+    shoulderDrop: 0.035,
+    sleeveAngle: 0.44,
+    sleeveRadiusTop: 0.105,
+    sleeveRadiusCuff: 0.092,
+    sleeveLength: 0.26,
+    hasHood: false,
+    hasKangarooPocket: false,
+    collarThickness: 0.024,
+  },
+  // Hoodie / Sweatshirt Cuts
+  {
+    id: 'classic-hoodie',
+    garmentType: 'hoodie',
+    priceDelta: 0,
+    chestWidth: 0.385,
+    waistWidth: 0.355,
+    hemWidth: 0.335,
+    torsoLength: 1.38,
+    depthZ: 0.24,
+    shoulderDrop: 0.055,
+    sleeveAngle: 0.35,
+    sleeveRadiusTop: 0.132,
+    sleeveRadiusCuff: 0.076,
+    sleeveLength: 0.78,
+    hasHood: true,
+    hasKangarooPocket: true,
+    collarThickness: 0.032,
+  },
+  {
+    id: 'oversized-hoodie',
+    garmentType: 'hoodie',
+    priceDelta: 8,
+    chestWidth: 0.445,
+    waistWidth: 0.43,
+    hemWidth: 0.38,
+    torsoLength: 1.44,
+    depthZ: 0.265,
+    shoulderDrop: 0.085,
+    sleeveAngle: 0.42,
+    sleeveRadiusTop: 0.155,
+    sleeveRadiusCuff: 0.086,
+    sleeveLength: 0.82,
+    hasHood: true,
+    hasKangarooPocket: true,
+    collarThickness: 0.036,
+  },
+  {
+    id: 'crewneck-sweatshirt',
+    garmentType: 'hoodie',
+    priceDelta: -5,
+    chestWidth: 0.39,
+    waistWidth: 0.36,
+    hemWidth: 0.335,
+    torsoLength: 1.37,
+    depthZ: 0.238,
+    shoulderDrop: 0.05,
+    sleeveAngle: 0.34,
+    sleeveRadiusTop: 0.13,
+    sleeveRadiusCuff: 0.075,
+    sleeveLength: 0.77,
+    hasHood: false,
+    hasKangarooPocket: false,
+    collarThickness: 0.038,
+  },
+];
+
 export const GARMENT_COLORS: GarmentColorOption[] = [
   { id: 'optic-white', name: 'Optic White', hex: '#f2f1ec', roughness: 0.88 },
   { id: 'jet-black', name: 'Jet Black', hex: '#17191f', roughness: 0.86 },
@@ -339,86 +530,115 @@ export const GARMENT_SIZES = ['S', 'M', 'L', 'XL', 'XXL'] as const;
 export type GarmentSizeLabel = (typeof GARMENT_SIZES)[number];
 
 export function calculatePriceSummary(params: {
+  lang?: LanguageCode;
   mode: StudioMode;
   canvasSizeId: CanvasSizeId;
+  canvasOrientation: CanvasOrientation;
+  customWidthCm: number;
+  customHeightCm: number;
   frameStyleId: FrameStyleId;
   canvasFinishId: CanvasFinishId;
   artFilterId: ArtFilterId;
   backlightModeId: BacklightModeId;
   garmentTypeId: GarmentTypeId;
+  garmentCutId: GarmentCutId;
   printPlacementId: PrintPlacementId;
   printScale: number;
   hasCustomCaption: boolean;
   quantity: number;
 }): PriceSummary {
+  const t = TRANSLATIONS[params.lang ?? 'en'];
   const items: PriceLineItem[] = [];
   const filter = ART_FILTERS.find((f) => f.id === params.artFilterId) ?? ART_FILTERS[0];
+  const filterLabel = t.filters[filter.id].name;
 
   if (params.mode === 'canvas') {
-    const size = CANVAS_SIZES.find((s) => s.id === params.canvasSizeId) ?? CANVAS_SIZES[1];
+    const dims = resolveCanvasDimensions(
+      params.canvasSizeId,
+      params.canvasOrientation,
+      params.customWidthCm,
+      params.customHeightCm
+    );
     const frame = FRAME_STYLES.find((f) => f.id === params.frameStyleId) ?? FRAME_STYLES[1];
     const finish =
       CANVAS_FINISHES.find((c) => c.id === params.canvasFinishId) ?? CANVAS_FINISHES[0];
     const backlight =
       BACKLIGHT_OPTIONS.find((b) => b.id === params.backlightModeId) ?? BACKLIGHT_OPTIONS[0];
 
+    const scaledFramePrice =
+      frame.price === 0
+        ? 0
+        : Math.round(frame.price * dims.frameScaleMultiplier);
+
     items.push({
-      label: `Museum Canvas (${size.label})`,
-      detail: '380 GSM archival cotton weave',
-      amount: size.basePrice,
+      label:
+        dims.sizeId === 'custom'
+          ? `${t.priceCustomCanvas} (${dims.label})`
+          : `${t.priceMuseumCanvas} (${dims.label})`,
+      detail: `${dims.areaCm2.toLocaleString()} cm² · P ${dims.perimeterCm} cm`,
+      amount: dims.basePrice,
     });
     items.push({
-      label: frame.name,
-      detail: frame.subtitle,
-      amount: frame.price,
+      label: t.frames[frame.id].name,
+      detail: t.frames[frame.id].subtitle,
+      amount: scaledFramePrice,
     });
     items.push({
-      label: finish.name,
-      detail: finish.id === 'matte' ? 'Included' : 'UV Protective Gloss',
+      label: t.finishes[finish.id].name,
+      detail: finish.id === 'matte' ? t.included : t.finishes[finish.id].subtitle,
       amount: finish.price,
     });
     if (filter.price > 0) {
       items.push({
-        label: `Art Style: ${filter.name}`,
-        detail: 'Bespoke artist finish',
+        label: `${t.priceArtStylePrefix}: ${filterLabel}`,
+        detail: t.filters[filter.id].subtitle,
         amount: filter.price,
       });
     }
     if (backlight.price > 0) {
       items.push({
-        label: `LED Backlight: ${backlight.name}`,
-        detail: 'Perimeter aluminum channel + dimmer',
+        label: `${t.priceBacklightPrefix}: ${t.backlights[backlight.id].name}`,
+        detail: t.backlights[backlight.id].subtitle,
         amount: backlight.price,
       });
     }
   } else {
     const garment =
       GARMENT_TYPES.find((g) => g.id === params.garmentTypeId) ?? GARMENT_TYPES[0];
+    const cut =
+      GARMENT_CUTS.find((c) => c.id === params.garmentCutId) ?? GARMENT_CUTS[0];
     const placement =
       PRINT_PLACEMENTS.find((p) => p.id === params.printPlacementId) ?? PRINT_PLACEMENTS[1];
     const oversizedPrintExtra = params.printScale > 1.2 ? 6 : 0;
 
     items.push({
-      label: garment.name,
+      label: t.garmentTypes[garment.id].name,
       detail: garment.gsm,
       amount: garment.basePrice,
     });
+    if (cut.priceDelta !== 0) {
+      items.push({
+        label: `${t.priceCutPrefix}: ${t.garmentCuts[cut.id].name}`,
+        detail: t.garmentCuts[cut.id].subtitle,
+        amount: cut.priceDelta,
+      });
+    }
     items.push({
-      label: placement.name,
-      detail: 'Ultra-HD Kornit DTG print',
+      label: t.placements[placement.id].name,
+      detail: t.placements[placement.id].subtitle,
       amount: placement.price,
     });
     if (oversizedPrintExtra > 0) {
       items.push({
-        label: 'Oversized Format Boost',
-        detail: `Scale ${Math.round(params.printScale * 100)}% (>120%)`,
+        label: t.priceOversizedBoost,
+        detail: `${Math.round(params.printScale * 100)}%`,
         amount: oversizedPrintExtra,
       });
     }
     if (filter.price > 0) {
       items.push({
-        label: `Art Style: ${filter.name}`,
-        detail: 'Color-graded print prep',
+        label: `${t.priceArtStylePrefix}: ${filterLabel}`,
+        detail: t.filters[filter.id].subtitle,
         amount: filter.price,
       });
     }
@@ -426,8 +646,8 @@ export function calculatePriceSummary(params: {
 
   if (params.hasCustomCaption) {
     items.push({
-      label: 'Custom Atelier Signature',
-      detail: 'Typeset typography overlay',
+      label: t.priceCustomSignature,
+      detail: t.customSignatureHint,
       amount: 5,
     });
   }

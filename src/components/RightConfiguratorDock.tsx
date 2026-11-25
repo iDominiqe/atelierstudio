@@ -5,19 +5,24 @@ import {
   Lightbulb,
   Minus,
   Plus,
+  RectangleHorizontal,
+  RectangleVertical,
   RotateCcw,
   Ruler,
+  Scissors,
   Shirt,
   ShoppingBag,
   Sparkles,
   User,
 } from 'lucide-react';
+import { TRANSLATIONS } from '../data/i18n';
 import {
   BACKLIGHT_OPTIONS,
   CANVAS_FINISHES,
   CANVAS_SIZES,
   FRAME_STYLES,
   GARMENT_COLORS,
+  GARMENT_CUTS,
   GARMENT_SIZES,
   GARMENT_TYPES,
   PRINT_PLACEMENTS,
@@ -26,22 +31,34 @@ import {
 import type {
   BacklightModeId,
   CanvasFinishId,
+  CanvasOrientation,
   CanvasSizeId,
   FrameStyleId,
   GarmentColorId,
+  GarmentCutId,
   GarmentTypeId,
+  LanguageCode,
   PriceSummary,
   PrintPlacementId,
+  ResolvedCanvasDimensions,
   RoomLightingMode,
   ScaleReferenceMode,
   StudioMode,
 } from '../types/studio';
 
 interface RightConfiguratorDockProps {
+  lang: LanguageCode;
   mode: StudioMode;
   // Mode A
   canvasSizeId: CanvasSizeId;
   onSelectCanvasSize: (id: CanvasSizeId) => void;
+  canvasOrientation: CanvasOrientation;
+  onSelectOrientation: (ori: CanvasOrientation) => void;
+  customWidthCm: number;
+  customHeightCm: number;
+  onChangeCustomWidth: (cm: number) => void;
+  onChangeCustomHeight: (cm: number) => void;
+  resolvedDims: ResolvedCanvasDimensions;
   frameStyleId: FrameStyleId;
   onSelectFrameStyle: (id: FrameStyleId) => void;
   canvasFinishId: CanvasFinishId;
@@ -55,6 +72,8 @@ interface RightConfiguratorDockProps {
   // Mode B
   garmentType: GarmentTypeId;
   onSelectGarmentType: (id: GarmentTypeId) => void;
+  garmentCutId: GarmentCutId;
+  onSelectGarmentCut: (id: GarmentCutId) => void;
   garmentColorId: GarmentColorId;
   onSelectGarmentColor: (id: GarmentColorId) => void;
   garmentSize: GarmentSizeLabel;
@@ -75,9 +94,17 @@ interface RightConfiguratorDockProps {
 }
 
 export const RightConfiguratorDock: React.FC<RightConfiguratorDockProps> = ({
+  lang,
   mode,
   canvasSizeId,
   onSelectCanvasSize,
+  canvasOrientation,
+  onSelectOrientation,
+  customWidthCm,
+  customHeightCm,
+  onChangeCustomWidth,
+  onChangeCustomHeight,
+  resolvedDims,
   frameStyleId,
   onSelectFrameStyle,
   canvasFinishId,
@@ -90,6 +117,8 @@ export const RightConfiguratorDock: React.FC<RightConfiguratorDockProps> = ({
   onSelectScaleReference,
   garmentType,
   onSelectGarmentType,
+  garmentCutId,
+  onSelectGarmentCut,
   garmentColorId,
   onSelectGarmentColor,
   garmentSize,
@@ -107,18 +136,19 @@ export const RightConfiguratorDock: React.FC<RightConfiguratorDockProps> = ({
   onEnterFullscreenPreview,
   onOpenCheckout,
 }) => {
+  const t = TRANSLATIONS[lang];
+  const cutsForType = GARMENT_CUTS.filter((c) => c.garmentType === garmentType);
+
   return (
-    <aside className="pointer-events-auto fixed right-3 top-[68px] bottom-3 w-[310px] xl:w-[336px] z-20 flex flex-col studio-glass rounded-3xl overflow-hidden">
+    <aside className="pointer-events-auto fixed right-3 top-[68px] bottom-3 w-[310px] xl:w-[342px] z-20 flex flex-col studio-glass rounded-3xl overflow-hidden">
       {/* Header */}
       <div className="px-4 pt-3.5 pb-2.5 border-b border-white/10 flex items-center justify-between">
         <div>
           <span className="text-[10px] font-mono uppercase tracking-widest text-amber-400">
-            {mode === 'canvas' ? '02 · Wall Art Specs' : '02 · Garment Specs'}
+            {mode === 'canvas' ? t.wallSpecsStep : t.garmentSpecsStep}
           </span>
           <h2 className="font-display font-bold text-sm text-white">
-            {mode === 'canvas'
-              ? 'Canvas, Frame & Lighting'
-              : 'Apparel, Color & Print'}
+            {mode === 'canvas' ? t.wallSpecsTitle : t.garmentSpecsTitle}
           </h2>
         </div>
         <div className="px-2 py-0.5 rounded-full bg-amber-500/20 border border-amber-400/35 text-[11px] font-mono font-bold text-amber-300">
@@ -130,18 +160,65 @@ export const RightConfiguratorDock: React.FC<RightConfiguratorDockProps> = ({
       <div className="flex-1 overflow-y-auto studio-scroll p-3.5 space-y-4">
         {mode === 'canvas' ? (
           <>
-            {/* Canvas Size Selector */}
+            {/* Orientation Switcher (Portrait vs Landscape) */}
+            <section>
+              <div className="flex items-center justify-between mb-1.5">
+                <span className="text-[11px] font-semibold text-stone-200">
+                  {t.orientationLabel}
+                </span>
+                <span className="text-[10px] font-mono text-amber-300">
+                  {resolvedDims.label}
+                </span>
+              </div>
+              <div className="grid grid-cols-2 gap-1.5 bg-stone-950/55 p-1 rounded-xl border border-white/10">
+                <button
+                  type="button"
+                  onClick={() => onSelectOrientation('portrait')}
+                  aria-pressed={canvasOrientation === 'portrait'}
+                  className={`py-1.5 px-2 rounded-lg text-[11px] font-semibold flex items-center justify-center gap-1.5 transition-all cursor-pointer whitespace-nowrap ${
+                    canvasOrientation === 'portrait'
+                      ? 'bg-amber-400 text-stone-950 shadow-sm'
+                      : 'text-stone-300 hover:text-white hover:bg-white/10'
+                  }`}
+                >
+                  <RectangleVertical className="w-3.5 h-3.5 shrink-0" />
+                  <span>{t.orientationPortrait}</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => onSelectOrientation('landscape')}
+                  aria-pressed={canvasOrientation === 'landscape'}
+                  className={`py-1.5 px-2 rounded-lg text-[11px] font-semibold flex items-center justify-center gap-1.5 transition-all cursor-pointer whitespace-nowrap ${
+                    canvasOrientation === 'landscape'
+                      ? 'bg-amber-400 text-stone-950 shadow-sm'
+                      : 'text-stone-300 hover:text-white hover:bg-white/10'
+                  }`}
+                >
+                  <RectangleHorizontal className="w-3.5 h-3.5 shrink-0" />
+                  <span>{t.orientationLandscape}</span>
+                </button>
+              </div>
+            </section>
+
+            {/* Canvas Dimensions (4 Presets + Custom 20-200 cm) */}
             <section>
               <div className="flex items-center justify-between mb-2">
                 <span className="text-[11px] font-semibold text-stone-200 flex items-center gap-1.5">
                   <Ruler className="w-3.5 h-3.5 text-amber-400" />
-                  <span>Canvas Dimensions</span>
+                  <span>{t.canvasDimensionsLabel}</span>
                 </span>
-                <span className="text-[10px] font-mono text-stone-400">CM SCALE</span>
+                <span className="text-[10px] font-mono text-stone-400">
+                  {t.cmScaleBadge}
+                </span>
               </div>
+
               <div className="grid grid-cols-2 gap-1.5">
                 {CANVAS_SIZES.map((sz) => {
                   const active = canvasSizeId === sz.id;
+                  const dispLabel =
+                    canvasOrientation === 'landscape'
+                      ? `${sz.heightCm} × ${sz.widthCm} cm`
+                      : sz.label;
                   return (
                     <button
                       key={sz.id}
@@ -153,29 +230,135 @@ export const RightConfiguratorDock: React.FC<RightConfiguratorDockProps> = ({
                           : 'bg-white/[0.03] border-white/10 hover:bg-white/[0.07]'
                       }`}
                     >
-                      <div className="flex items-center justify-between">
-                        <span className="text-xs font-bold text-white">
-                          {sz.label}
+                      <div className="flex items-center justify-between gap-1">
+                        <span className="text-xs font-bold text-white whitespace-nowrap">
+                          {dispLabel}
                         </span>
-                        <span className="text-[11px] font-mono font-semibold text-amber-300">
+                        <span className="text-[11px] font-mono font-semibold text-amber-300 shrink-0">
                           €{sz.basePrice}
                         </span>
                       </div>
                       <div className="text-[9px] text-stone-400 mt-0.5 truncate">
-                        {sz.recommendedRoom}
+                        {t.roomRec[sz.id]}
                       </div>
                     </button>
                   );
                 })}
               </div>
 
+              {/* Custom Dimensions Card (20–200 cm) */}
+              <button
+                type="button"
+                onClick={() => onSelectCanvasSize('custom')}
+                className={`mt-1.5 w-full rounded-xl px-3 py-2 text-left transition-all cursor-pointer border ${
+                  canvasSizeId === 'custom'
+                    ? 'bg-amber-500/20 border-amber-400/75 shadow-sm'
+                    : 'bg-white/[0.03] border-white/10 hover:bg-white/[0.07]'
+                }`}
+              >
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-bold text-white">
+                    {t.customDimensionsTitle}
+                  </span>
+                  <span className="text-[11px] font-mono font-semibold text-amber-300">
+                    {canvasSizeId === 'custom'
+                      ? `€${resolvedDims.basePrice}`
+                      : '20–200 cm'}
+                  </span>
+                </div>
+                <div className="text-[9px] text-stone-400 mt-0.5">
+                  {t.customDimensionsSub}
+                </div>
+              </button>
+
+              {canvasSizeId === 'custom' && (
+                <div className="mt-2 rounded-2xl bg-stone-950/65 border border-amber-400/35 p-3 space-y-2.5">
+                  <div>
+                    <div className="flex items-center justify-between text-[10px] mb-1">
+                      <span className="text-stone-300 font-semibold">
+                        {t.widthCmLabel} (cm)
+                      </span>
+                      <input
+                        type="number"
+                        min={20}
+                        max={200}
+                        value={customWidthCm}
+                        onChange={(e) =>
+                          onChangeCustomWidth(
+                            Math.min(200, Math.max(20, Number(e.target.value) || 20))
+                          )
+                        }
+                        aria-label={t.widthCmLabel}
+                        className="w-16 rounded-lg bg-stone-900 border border-white/15 px-2 py-0.5 text-right font-mono text-[11px] text-amber-300 outline-none focus:border-amber-400 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                      />
+                    </div>
+                    <input
+                      type="range"
+                      min={20}
+                      max={200}
+                      step={5}
+                      value={customWidthCm}
+                      onChange={(e) => onChangeCustomWidth(Number(e.target.value))}
+                      aria-label={`${t.widthCmLabel} slider`}
+                      className="w-full studio-slider"
+                    />
+                  </div>
+
+                  <div>
+                    <div className="flex items-center justify-between text-[10px] mb-1">
+                      <span className="text-stone-300 font-semibold">
+                        {t.heightCmLabel} (cm)
+                      </span>
+                      <input
+                        type="number"
+                        min={20}
+                        max={200}
+                        value={customHeightCm}
+                        onChange={(e) =>
+                          onChangeCustomHeight(
+                            Math.min(200, Math.max(20, Number(e.target.value) || 20))
+                          )
+                        }
+                        aria-label={t.heightCmLabel}
+                        className="w-16 rounded-lg bg-stone-900 border border-white/15 px-2 py-0.5 text-right font-mono text-[11px] text-amber-300 outline-none focus:border-amber-400 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                      />
+                    </div>
+                    <input
+                      type="range"
+                      min={20}
+                      max={200}
+                      step={5}
+                      value={customHeightCm}
+                      onChange={(e) => onChangeCustomHeight(Number(e.target.value))}
+                      aria-label={`${t.heightCmLabel} slider`}
+                      className="w-full studio-slider"
+                    />
+                  </div>
+
+                  <div className="flex items-center justify-between text-[10px] font-mono text-stone-400 pt-1 border-t border-white/10">
+                    <span>
+                      {t.areaLabel}:{' '}
+                      <strong className="text-stone-200">
+                        {resolvedDims.areaCm2.toLocaleString()} cm²
+                      </strong>
+                    </span>
+                    <span>
+                      {t.perimeterLabel}:{' '}
+                      <strong className="text-stone-200">
+                        {resolvedDims.perimeterCm} cm
+                      </strong>
+                    </span>
+                  </div>
+                </div>
+              )}
+
               {/* Scale Reference Toggle */}
               <div className="mt-2 flex items-center gap-1 bg-stone-950/50 p-1 rounded-xl border border-white/10">
                 {(
                   [
-                    { id: 'interior', label: 'Sofa' },
-                    { id: 'human', label: '175cm' },
-                    { id: 'none', label: 'Wall Only' },
+                    { id: 'interior', label: t.scaleSofa },
+                    { id: 'human', label: t.scaleHuman },
+                    { id: 'none', label: t.scaleWall },
                   ] as const
                 ).map((opt) => {
                   const active = scaleReference === opt.id;
@@ -190,7 +373,9 @@ export const RightConfiguratorDock: React.FC<RightConfiguratorDockProps> = ({
                           : 'text-stone-400 hover:text-stone-200'
                       }`}
                     >
-                      {opt.id === 'human' && <User className="w-3 h-3 text-amber-400" />}
+                      {opt.id === 'human' && (
+                        <User className="w-3 h-3 text-amber-400 shrink-0" />
+                      )}
                       <span>{opt.label}</span>
                     </button>
                   );
@@ -202,13 +387,18 @@ export const RightConfiguratorDock: React.FC<RightConfiguratorDockProps> = ({
             <section>
               <div className="flex items-center justify-between mb-2">
                 <span className="text-[11px] font-semibold text-stone-200">
-                  3D Frame Architecture
+                  {t.frameArchLabel}
                 </span>
                 <span className="text-[10px] font-mono text-stone-400">PBR</span>
               </div>
               <div className="space-y-1.5">
                 {FRAME_STYLES.map((frame) => {
                   const active = frameStyleId === frame.id;
+                  const loc = t.frames[frame.id];
+                  const dynamicPrice =
+                    frame.price === 0
+                      ? 0
+                      : Math.round(frame.price * resolvedDims.frameScaleMultiplier);
                   return (
                     <button
                       key={frame.id}
@@ -227,15 +417,15 @@ export const RightConfiguratorDock: React.FC<RightConfiguratorDockProps> = ({
                         />
                         <div className="min-w-0">
                           <div className="text-[11px] font-semibold text-white truncate">
-                            {frame.name}
+                            {loc.name}
                           </div>
                           <div className="text-[9px] text-stone-400 truncate">
-                            {frame.subtitle}
+                            {loc.subtitle}
                           </div>
                         </div>
                       </div>
-                      <span className="text-[10px] font-mono font-semibold text-amber-300 shrink-0 ml-2">
-                        {frame.price === 0 ? 'Incl.' : `+€${frame.price}`}
+                      <span className="text-[10px] font-mono font-semibold text-amber-300 shrink-0 ml-2 whitespace-nowrap">
+                        {dynamicPrice === 0 ? t.included : `+€${dynamicPrice}`}
                       </span>
                     </button>
                   );
@@ -247,13 +437,14 @@ export const RightConfiguratorDock: React.FC<RightConfiguratorDockProps> = ({
             <section>
               <div className="flex items-center justify-between mb-2">
                 <span className="text-[11px] font-semibold text-stone-200">
-                  Canvas Surface Finish
+                  {t.canvasFinishLabel}
                 </span>
-                <span className="text-[10px] font-mono text-stone-400">PHYSICS</span>
+                <span className="text-[10px] font-mono text-stone-400">PBR</span>
               </div>
               <div className="grid grid-cols-2 gap-1.5">
                 {CANVAS_FINISHES.map((fin) => {
                   const active = canvasFinishId === fin.id;
+                  const loc = t.finishes[fin.id];
                   return (
                     <button
                       key={fin.id}
@@ -267,14 +458,16 @@ export const RightConfiguratorDock: React.FC<RightConfiguratorDockProps> = ({
                     >
                       <div className="flex items-center justify-between gap-1">
                         <span className="text-[11px] font-bold text-white leading-tight">
-                          {fin.id === 'matte' ? 'Matte Fine-Art' : 'Satin / Gloss'}
+                          {fin.id === 'matte'
+                            ? t.finishMatteShort
+                            : t.finishGlossShort}
                         </span>
-                        <span className="text-[10px] font-mono text-amber-300">
-                          {fin.price === 0 ? 'Incl.' : `+€${fin.price}`}
+                        <span className="text-[10px] font-mono text-amber-300 whitespace-nowrap shrink-0">
+                          {fin.price === 0 ? t.included : `+€${fin.price}`}
                         </span>
                       </div>
                       <div className="text-[9px] text-stone-400 mt-1 leading-snug">
-                        {fin.subtitle}
+                        {loc.subtitle}
                       </div>
                     </button>
                   );
@@ -287,7 +480,7 @@ export const RightConfiguratorDock: React.FC<RightConfiguratorDockProps> = ({
               <div className="flex items-center justify-between mb-2">
                 <span className="text-[11px] font-semibold text-stone-200 flex items-center gap-1.5">
                   <Lightbulb className="w-3.5 h-3.5 text-amber-400" />
-                  <span>Backlit Halo LED &amp; Room</span>
+                  <span>{t.backlightSectionLabel}</span>
                 </span>
                 <span className="text-[10px] font-mono text-amber-300">BLOOM</span>
               </div>
@@ -295,6 +488,7 @@ export const RightConfiguratorDock: React.FC<RightConfiguratorDockProps> = ({
               <div className="space-y-1.5">
                 {BACKLIGHT_OPTIONS.map((led) => {
                   const active = backlightModeId === led.id;
+                  const loc = t.backlights[led.id];
                   return (
                     <button
                       key={led.id}
@@ -313,14 +507,14 @@ export const RightConfiguratorDock: React.FC<RightConfiguratorDockProps> = ({
                         />
                         <div className="min-w-0">
                           <div className="text-[11px] font-semibold text-white truncate">
-                            {led.name}
+                            {loc.name}
                           </div>
                           <div className="text-[9px] text-stone-400 truncate">
-                            {led.subtitle}
+                            {loc.subtitle}
                           </div>
                         </div>
                       </div>
-                      <span className="text-[10px] font-mono font-semibold text-amber-300 shrink-0 ml-2">
+                      <span className="text-[10px] font-mono font-semibold text-amber-300 shrink-0 ml-2 whitespace-nowrap">
                         {led.price === 0 ? '€0' : `+€${led.price}`}
                       </span>
                     </button>
@@ -328,7 +522,6 @@ export const RightConfiguratorDock: React.FC<RightConfiguratorDockProps> = ({
                 })}
               </div>
 
-              {/* Quick Daylight vs Museum Night Spotlight toggle */}
               <div className="mt-2 grid grid-cols-2 gap-1.5">
                 <button
                   type="button"
@@ -339,7 +532,7 @@ export const RightConfiguratorDock: React.FC<RightConfiguratorDockProps> = ({
                       : 'bg-white/[0.03] border-white/10 text-stone-400 hover:text-white'
                   }`}
                 >
-                  Daylight Gallery
+                  {t.daylightGalleryBtn}
                 </button>
                 <button
                   type="button"
@@ -350,25 +543,26 @@ export const RightConfiguratorDock: React.FC<RightConfiguratorDockProps> = ({
                       : 'bg-white/[0.03] border-white/10 text-stone-400 hover:text-white'
                   }`}
                 >
-                  Night Spotlight
+                  {t.nightSpotlightBtn}
                 </button>
               </div>
             </section>
           </>
         ) : (
           <>
-            {/* MODE B: 3D Garment Selector (T-Shirt vs Pullover Hoodie / Батник) */}
+            {/* MODE B: 3D Garment Category */}
             <section>
               <div className="flex items-center justify-between mb-2">
                 <span className="text-[11px] font-semibold text-stone-200 flex items-center gap-1.5">
                   <Shirt className="w-3.5 h-3.5 text-amber-400" />
-                  <span>3D Garment Model</span>
+                  <span>{t.garmentModelLabel}</span>
                 </span>
-                <span className="text-[10px] font-mono text-stone-400">ATELIER FIT</span>
+                <span className="text-[10px] font-mono text-stone-400">ATELIER</span>
               </div>
               <div className="grid grid-cols-2 gap-1.5">
                 {GARMENT_TYPES.map((g) => {
                   const active = garmentType === g.id;
+                  const loc = t.garmentTypes[g.id];
                   return (
                     <button
                       key={g.id}
@@ -380,16 +574,60 @@ export const RightConfiguratorDock: React.FC<RightConfiguratorDockProps> = ({
                           : 'bg-white/[0.03] border-white/10 hover:bg-white/[0.07]'
                       }`}
                     >
-                      <div className="flex items-center justify-between">
-                        <span className="text-xs font-bold text-white">{g.name}</span>
-                        <span className="text-[11px] font-mono font-semibold text-amber-300">
+                      <div className="flex items-center justify-between gap-1.5">
+                        <span className="text-[11px] font-bold text-white leading-tight">
+                          {loc.name}
+                        </span>
+                        <span className="text-[11px] font-mono font-semibold text-amber-300 shrink-0 whitespace-nowrap">
                           €{g.basePrice}
                         </span>
                       </div>
-                      <div className="text-[9px] text-stone-300 mt-0.5">{g.subtitle}</div>
-                      <div className="text-[9px] font-mono text-stone-400 mt-0.5">
-                        {g.gsm}
+                      <div className="text-[9px] text-stone-300 mt-1">{loc.subtitle}</div>
+                    </button>
+                  );
+                })}
+              </div>
+            </section>
+
+            {/* Garment Fit / Cut Selector */}
+            <section>
+              <div className="flex items-center justify-between mb-2">
+                <span className="text-[11px] font-semibold text-stone-200 flex items-center gap-1.5">
+                  <Scissors className="w-3.5 h-3.5 text-amber-400" />
+                  <span>{t.garmentCutLabel}</span>
+                </span>
+                <span className="text-[10px] font-mono text-amber-300">3D CUT</span>
+              </div>
+              <div className="space-y-1.5">
+                {cutsForType.map((cut) => {
+                  const active = garmentCutId === cut.id;
+                  const loc = t.garmentCuts[cut.id];
+                  return (
+                    <button
+                      key={cut.id}
+                      type="button"
+                      onClick={() => onSelectGarmentCut(cut.id)}
+                      className={`w-full rounded-xl px-2.5 py-2 flex items-center justify-between text-left transition-all cursor-pointer border ${
+                        active
+                          ? 'bg-amber-500/20 border-amber-400/70'
+                          : 'bg-white/[0.03] border-white/10 hover:bg-white/[0.07]'
+                      }`}
+                    >
+                      <div className="min-w-0 pr-2">
+                        <div className="text-[11px] font-semibold text-white truncate">
+                          {loc.name}
+                        </div>
+                        <div className="text-[9px] text-stone-400 truncate">
+                          {loc.subtitle}
+                        </div>
                       </div>
+                      <span className="text-[10px] font-mono font-semibold text-amber-300 shrink-0 whitespace-nowrap">
+                        {cut.priceDelta === 0
+                          ? t.included
+                          : cut.priceDelta > 0
+                          ? `+€${cut.priceDelta}`
+                          : `-€${Math.abs(cut.priceDelta)}`}
+                      </span>
                     </button>
                   );
                 })}
@@ -400,22 +638,23 @@ export const RightConfiguratorDock: React.FC<RightConfiguratorDockProps> = ({
             <section>
               <div className="flex items-center justify-between mb-2">
                 <span className="text-[11px] font-semibold text-stone-200">
-                  Fabric Colorway
+                  {t.fabricColorLabel}
                 </span>
                 <span className="text-[10px] font-mono text-amber-300">
-                  {GARMENT_COLORS.find((c) => c.id === garmentColorId)?.name}
+                  {t.garmentColors[garmentColorId]}
                 </span>
               </div>
               <div className="flex items-center justify-between gap-1.5 bg-white/[0.03] border border-white/10 rounded-2xl p-2">
                 {GARMENT_COLORS.map((col) => {
                   const active = garmentColorId === col.id;
+                  const colName = t.garmentColors[col.id];
                   return (
                     <button
                       key={col.id}
                       type="button"
                       onClick={() => onSelectGarmentColor(col.id)}
-                      title={col.name}
-                      aria-label={col.name}
+                      title={colName}
+                      aria-label={colName}
                       className={`w-8 h-8 rounded-full flex items-center justify-center transition-all cursor-pointer border-2 ${
                         active
                           ? 'border-amber-400 scale-110 shadow-lg shadow-amber-500/30'
@@ -437,7 +676,6 @@ export const RightConfiguratorDock: React.FC<RightConfiguratorDockProps> = ({
                 })}
               </div>
 
-              {/* Clothing Size S-XXL */}
               <div className="mt-2 flex items-center gap-1">
                 {GARMENT_SIZES.map((sz) => {
                   const active = garmentSize === sz;
@@ -464,13 +702,16 @@ export const RightConfiguratorDock: React.FC<RightConfiguratorDockProps> = ({
               <div className="flex items-center justify-between mb-2">
                 <span className="text-[11px] font-semibold text-stone-200 flex items-center gap-1.5">
                   <Sparkles className="w-3.5 h-3.5 text-amber-400" />
-                  <span>Print / Logo Placement</span>
+                  <span>{t.printPlacementLabel}</span>
                 </span>
-                <span className="text-[10px] font-mono text-stone-400">AUTO-CAM</span>
+                <span className="text-[10px] font-mono text-stone-400">
+                  {t.autoCamBadge}
+                </span>
               </div>
               <div className="grid grid-cols-2 gap-1.5">
                 {PRINT_PLACEMENTS.map((place) => {
                   const active = printPlacement === place.id;
+                  const loc = t.placements[place.id];
                   return (
                     <button
                       key={place.id}
@@ -484,14 +725,14 @@ export const RightConfiguratorDock: React.FC<RightConfiguratorDockProps> = ({
                     >
                       <div className="flex items-center justify-between gap-1">
                         <span className="text-[11px] font-bold text-white leading-tight">
-                          {place.name}
+                          {loc.name}
                         </span>
                         <span className="text-[10px] font-mono text-amber-300 whitespace-nowrap shrink-0">
                           +€{place.price}
                         </span>
                       </div>
                       <div className="text-[9px] text-stone-400 mt-0.5 leading-snug">
-                        {place.subtitle}
+                        {loc.subtitle}
                       </div>
                     </button>
                   );
@@ -503,7 +744,7 @@ export const RightConfiguratorDock: React.FC<RightConfiguratorDockProps> = ({
             <section className="rounded-2xl bg-white/[0.04] border border-white/10 p-3 space-y-3">
               <div className="flex items-center justify-between">
                 <span className="text-[11px] font-semibold text-stone-200">
-                  Fine-Tune Print Geometry
+                  {t.fineTunePrintLabel}
                 </span>
                 <button
                   type="button"
@@ -511,13 +752,13 @@ export const RightConfiguratorDock: React.FC<RightConfiguratorDockProps> = ({
                   className="text-[10px] font-mono text-amber-300 hover:text-amber-200 flex items-center gap-1 cursor-pointer"
                 >
                   <RotateCcw className="w-3 h-3" />
-                  <span>Reset</span>
+                  <span>{t.resetBtn}</span>
                 </button>
               </div>
 
               <div>
                 <div className="flex items-center justify-between text-[10px] mb-1">
-                  <span className="text-stone-300">Print Scale</span>
+                  <span className="text-stone-300">{t.printScaleLabel}</span>
                   <span className="font-mono text-amber-300">
                     {Math.round(printScale * 100)}%
                     {printScale > 1.2 ? ' (+€6 XL)' : ''}
@@ -530,14 +771,14 @@ export const RightConfiguratorDock: React.FC<RightConfiguratorDockProps> = ({
                   step={0.05}
                   value={printScale}
                   onChange={(e) => onChangePrintScale(parseFloat(e.target.value))}
-                  aria-label="Print Scale"
+                  aria-label={t.printScaleLabel}
                   className="w-full studio-slider"
                 />
               </div>
 
               <div>
                 <div className="flex items-center justify-between text-[10px] mb-1">
-                  <span className="text-stone-300">Vertical Offset</span>
+                  <span className="text-stone-300">{t.verticalOffsetLabel}</span>
                   <span className="font-mono text-amber-300">
                     {printOffsetY > 0 ? `+${printOffsetY}` : printOffsetY} cm
                   </span>
@@ -549,7 +790,7 @@ export const RightConfiguratorDock: React.FC<RightConfiguratorDockProps> = ({
                   step={1}
                   value={printOffsetY}
                   onChange={(e) => onChangePrintOffsetY(parseInt(e.target.value, 10))}
-                  aria-label="Vertical Offset"
+                  aria-label={t.verticalOffsetLabel}
                   className="w-full studio-slider"
                 />
               </div>
@@ -561,7 +802,7 @@ export const RightConfiguratorDock: React.FC<RightConfiguratorDockProps> = ({
         <section className="rounded-2xl bg-stone-950/65 border border-white/10 p-3 space-y-2">
           <div className="flex items-center justify-between border-b border-white/10 pb-1.5">
             <span className="text-[10px] font-mono uppercase tracking-wider text-stone-400">
-              Live Price Breakdown
+              {t.livePriceBreakdown}
             </span>
             <div className="flex items-center gap-1.5">
               <button
@@ -591,7 +832,11 @@ export const RightConfiguratorDock: React.FC<RightConfiguratorDockProps> = ({
               <div key={i} className="flex items-center justify-between text-[11px]">
                 <span className="text-stone-300 truncate pr-2">{item.label}</span>
                 <span className="font-mono text-stone-200 shrink-0">
-                  {item.amount === 0 ? '€0' : `€${item.amount}`}
+                  {item.amount === 0
+                    ? '€0'
+                    : item.amount < 0
+                    ? `-€${Math.abs(item.amount)}`
+                    : `€${item.amount}`}
                 </span>
               </div>
             ))}
@@ -599,7 +844,8 @@ export const RightConfiguratorDock: React.FC<RightConfiguratorDockProps> = ({
 
           <div className="pt-2 border-t border-white/10 flex items-baseline justify-between">
             <span className="text-xs font-semibold text-stone-300">
-              Total ({quantity} {quantity === 1 ? 'piece' : 'pieces'})
+              {t.totalLabel} ({quantity}{' '}
+              {quantity === 1 ? t.pieceSingular : t.piecePlural})
             </span>
             <span className="font-display font-extrabold text-xl text-amber-400">
               €{priceSummary.grandTotal}
@@ -614,10 +860,10 @@ export const RightConfiguratorDock: React.FC<RightConfiguratorDockProps> = ({
           type="button"
           onClick={onEnterFullscreenPreview}
           className="px-3 py-2.5 rounded-xl bg-white/10 hover:bg-white/15 text-stone-100 text-xs font-semibold flex items-center justify-center gap-1.5 transition-all cursor-pointer shrink-0"
-          title="Fullscreen 360° Preview"
+          title={t.preview3D}
         >
           <Expand className="w-3.5 h-3.5 text-sky-400" />
-          <span>Preview</span>
+          <span>{t.previewBtn}</span>
         </button>
 
         <button
@@ -626,7 +872,9 @@ export const RightConfiguratorDock: React.FC<RightConfiguratorDockProps> = ({
           className="flex-1 px-3 py-2.5 rounded-xl bg-gradient-to-r from-amber-400 to-amber-500 hover:from-amber-300 hover:to-amber-400 text-stone-950 text-xs font-bold flex items-center justify-center gap-1.5 shadow-lg shadow-amber-500/20 transition-all cursor-pointer"
         >
           <ShoppingBag className="w-3.5 h-3.5" />
-          <span>Send to Order · €{priceSummary.grandTotal}</span>
+          <span>
+            {t.sendToOrderBtn} · €{priceSummary.grandTotal}
+          </span>
         </button>
       </div>
     </aside>

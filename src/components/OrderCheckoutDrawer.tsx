@@ -9,9 +9,16 @@ import {
   User,
   X,
 } from 'lucide-react';
-import type { CustomOrderPayload, PriceSummary, StudioMode } from '../types/studio';
+import { TRANSLATIONS } from '../data/i18n';
+import type {
+  CustomOrderPayload,
+  LanguageCode,
+  PriceSummary,
+  StudioMode,
+} from '../types/studio';
 
 interface OrderCheckoutDrawerProps {
+  lang: LanguageCode;
   open: boolean;
   onClose: () => void;
   snapshotDataUrl: string;
@@ -26,6 +33,7 @@ interface OrderCheckoutDrawerProps {
 }
 
 export const OrderCheckoutDrawer: React.FC<OrderCheckoutDrawerProps> = ({
+  lang,
   open,
   onClose,
   snapshotDataUrl,
@@ -38,6 +46,7 @@ export const OrderCheckoutDrawer: React.FC<OrderCheckoutDrawerProps> = ({
   onDownloadSpecCard,
   onResetStudio,
 }) => {
+  const t = TRANSLATIONS[lang];
   const [customerName, setCustomerName] = useState('Elena Moraru');
   const [contactHandle, setContactHandle] = useState('+373 69 412 880 / @elena_art');
   const [deliveryAddress, setDeliveryAddress] = useState(
@@ -81,10 +90,10 @@ export const OrderCheckoutDrawer: React.FC<OrderCheckoutDrawerProps> = ({
         <div className="px-5 py-4 border-b border-white/10 flex items-center justify-between">
           <div>
             <span className="text-[10px] font-mono uppercase tracking-widest text-amber-400">
-              Atelier Lumière · Bespoke Production
+              {t.checkoutBrandSub}
             </span>
             <h2 className="font-display font-bold text-lg text-white">
-              {submittedOrder ? 'Order Confirmed' : 'Review & Send to Order'}
+              {submittedOrder ? t.orderConfirmedTitle : t.checkoutTitle}
             </h2>
           </div>
           <button
@@ -117,14 +126,14 @@ export const OrderCheckoutDrawer: React.FC<OrderCheckoutDrawerProps> = ({
                 <div className="min-w-0 flex-1 space-y-1">
                   <div className="flex items-center gap-1.5">
                     <span className="px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-300 text-[9px] font-mono uppercase">
-                      {mode === 'canvas' ? 'Custom Canvas Portrait' : 'Custom Apparel'}
+                      {mode === 'canvas' ? t.modeBadgeCanvas : t.modeBadgeApparel}
                     </span>
                   </div>
                   <div className="text-sm font-bold text-white truncate">
                     {artworkTitle}
                   </div>
                   <div className="text-[11px] text-stone-300">
-                    Style: {artFilterName}
+                    {t.stylePrefix}: {artFilterName}
                     {customCaption ? ` · “${customCaption}”` : ''}
                   </div>
                   <button
@@ -133,7 +142,7 @@ export const OrderCheckoutDrawer: React.FC<OrderCheckoutDrawerProps> = ({
                     className="inline-flex items-center gap-1 text-[10px] font-semibold text-amber-300 hover:text-amber-200 cursor-pointer pt-0.5"
                   >
                     <Download className="w-3 h-3" />
-                    <span>Save PNG Preview Card</span>
+                    <span>{t.savePreviewCard}</span>
                   </button>
                 </div>
               </div>
@@ -141,7 +150,7 @@ export const OrderCheckoutDrawer: React.FC<OrderCheckoutDrawerProps> = ({
               {/* Configuration Summary Pills */}
               <div className="rounded-2xl bg-white/[0.03] border border-white/10 p-3 space-y-2">
                 <div className="text-[10px] font-mono uppercase tracking-wider text-stone-400">
-                  Selected Studio Specifications
+                  {t.selectedSpecsLabel}
                 </div>
                 <div className="flex flex-wrap gap-1.5">
                   {configurationSummary.map((spec, idx) => (
@@ -161,14 +170,18 @@ export const OrderCheckoutDrawer: React.FC<OrderCheckoutDrawerProps> = ({
                   <div key={i} className="flex items-center justify-between text-xs">
                     <span className="text-stone-300">{item.label}</span>
                     <span className="font-mono text-stone-200">
-                      {item.amount === 0 ? '€0' : `€${item.amount}`}
+                      {item.amount === 0
+                        ? '€0'
+                        : item.amount < 0
+                        ? `-€${Math.abs(item.amount)}`
+                        : `€${item.amount}`}
                     </span>
                   </div>
                 ))}
                 <div className="pt-2 mt-1 border-t border-white/10 flex items-center justify-between">
                   <span className="text-xs font-semibold text-stone-200">
-                    Total ({priceSummary.quantity}{' '}
-                    {priceSummary.quantity === 1 ? 'unit' : 'units'})
+                    {t.totalLabel} ({priceSummary.quantity}{' '}
+                    {priceSummary.quantity === 1 ? t.pieceSingular : t.piecePlural})
                   </span>
                   <span className="font-display font-extrabold text-xl text-amber-400">
                     €{priceSummary.grandTotal}
@@ -181,7 +194,7 @@ export const OrderCheckoutDrawer: React.FC<OrderCheckoutDrawerProps> = ({
                 <div>
                   <label className="text-[11px] font-semibold text-stone-300 flex items-center gap-1.5 mb-1">
                     <User className="w-3.5 h-3.5 text-amber-400" />
-                    <span>Full Name</span>
+                    <span>{t.fullNameLabel}</span>
                   </label>
                   <input
                     type="text"
@@ -195,7 +208,7 @@ export const OrderCheckoutDrawer: React.FC<OrderCheckoutDrawerProps> = ({
                 <div>
                   <label className="text-[11px] font-semibold text-stone-300 flex items-center gap-1.5 mb-1">
                     <Phone className="w-3.5 h-3.5 text-amber-400" />
-                    <span>Phone / Telegram</span>
+                    <span>{t.phoneTelegramLabel}</span>
                   </label>
                   <input
                     type="text"
@@ -209,7 +222,7 @@ export const OrderCheckoutDrawer: React.FC<OrderCheckoutDrawerProps> = ({
                 <div>
                   <label className="text-[11px] font-semibold text-stone-300 flex items-center gap-1.5 mb-1">
                     <MapPin className="w-3.5 h-3.5 text-amber-400" />
-                    <span>Delivery Address</span>
+                    <span>{t.deliveryAddressLabel}</span>
                   </label>
                   <input
                     type="text"
@@ -223,7 +236,7 @@ export const OrderCheckoutDrawer: React.FC<OrderCheckoutDrawerProps> = ({
                 <div>
                   <label className="text-[11px] font-semibold text-stone-300 flex items-center gap-1.5 mb-1">
                     <Sparkles className="w-3.5 h-3.5 text-amber-400" />
-                    <span>Atelier Production Notes</span>
+                    <span>{t.productionNotesLabel}</span>
                   </label>
                   <textarea
                     rows={2}
@@ -241,14 +254,14 @@ export const OrderCheckoutDrawer: React.FC<OrderCheckoutDrawerProps> = ({
                 <CheckCircle2 className="w-7 h-7 text-emerald-300 shrink-0 mt-0.5" />
                 <div>
                   <div className="text-sm font-bold text-emerald-200">
-                    Bespoke Commission Queued for Production!
+                    {t.orderQueuedTitle}
                   </div>
                   <p className="text-xs text-stone-300 mt-1">
-                    Our master printmaker will verify color calibration and reach out via{' '}
+                    {t.orderQueuedDescPre}{' '}
                     <span className="text-white font-semibold">
                       {submittedOrder.contactHandle}
                     </span>{' '}
-                    before shipping.
+                    {t.orderQueuedDescPost}
                   </p>
                 </div>
               </div>
@@ -257,7 +270,7 @@ export const OrderCheckoutDrawer: React.FC<OrderCheckoutDrawerProps> = ({
                 <div className="flex items-center justify-between border-b border-white/10 pb-2.5">
                   <div>
                     <div className="text-[10px] font-mono uppercase text-stone-400">
-                      Order Tracking Number
+                      {t.trackingNumberLabel}
                     </div>
                     <div className="font-mono font-bold text-lg text-amber-400">
                       {submittedOrder.orderId}
@@ -276,13 +289,13 @@ export const OrderCheckoutDrawer: React.FC<OrderCheckoutDrawerProps> = ({
 
                 <div className="grid grid-cols-2 gap-2 text-xs">
                   <div className="bg-white/[0.04] rounded-xl p-2.5">
-                    <div className="text-[10px] text-stone-400">Client</div>
+                    <div className="text-[10px] text-stone-400">{t.clientLabel}</div>
                     <div className="font-semibold text-white truncate">
                       {submittedOrder.customerName}
                     </div>
                   </div>
                   <div className="bg-white/[0.04] rounded-xl p-2.5">
-                    <div className="text-[10px] text-stone-400">Total Paid / Due</div>
+                    <div className="text-[10px] text-stone-400">{t.totalAmountLabel}</div>
                     <div className="font-mono font-bold text-amber-300">
                       €{submittedOrder.priceSummary.grandTotal}
                     </div>
@@ -291,11 +304,11 @@ export const OrderCheckoutDrawer: React.FC<OrderCheckoutDrawerProps> = ({
 
                 <div className="text-[11px] text-stone-300 space-y-1">
                   <div>
-                    <span className="text-stone-400">Delivery:</span>{' '}
+                    <span className="text-stone-400">{t.deliveryLabel}:</span>{' '}
                     {submittedOrder.deliveryAddress}
                   </div>
                   <div>
-                    <span className="text-stone-400">Specs:</span>{' '}
+                    <span className="text-stone-400">{t.specsLabel}:</span>{' '}
                     {submittedOrder.configurationSummary.join(' · ')}
                   </div>
                 </div>
@@ -308,7 +321,7 @@ export const OrderCheckoutDrawer: React.FC<OrderCheckoutDrawerProps> = ({
                   className="flex-1 py-2.5 px-3 rounded-xl bg-white/10 hover:bg-white/20 text-white text-xs font-semibold flex items-center justify-center gap-1.5 cursor-pointer"
                 >
                   <Download className="w-3.5 h-3.5 text-amber-400" />
-                  <span>Download Preview Card</span>
+                  <span>{t.downloadPreviewCard}</span>
                 </button>
                 <button
                   type="button"
@@ -319,7 +332,7 @@ export const OrderCheckoutDrawer: React.FC<OrderCheckoutDrawerProps> = ({
                   }}
                   className="flex-1 py-2.5 px-3 rounded-xl bg-amber-400 hover:bg-amber-300 text-stone-950 text-xs font-bold cursor-pointer"
                 >
-                  Create Another Piece
+                  {t.createAnotherPiece}
                 </button>
               </div>
             </div>
@@ -330,15 +343,19 @@ export const OrderCheckoutDrawer: React.FC<OrderCheckoutDrawerProps> = ({
         {!submittedOrder && (
           <div className="p-4 border-t border-white/10 bg-stone-950/75 flex items-center justify-between gap-3">
             <div>
-              <div className="text-[10px] font-mono text-stone-400">EST. DISPATCH</div>
-              <div className="text-xs font-semibold text-white">48 Hours Express</div>
+              <div className="text-[10px] font-mono text-stone-400">
+                {t.estDispatchLabel}
+              </div>
+              <div className="text-xs font-semibold text-white">
+                {t.estDispatchValue}
+              </div>
             </div>
             <button
               type="submit"
               form="atelier-order-form"
               className="px-5 py-2.5 rounded-xl bg-gradient-to-r from-amber-400 to-amber-500 hover:from-amber-300 hover:to-amber-400 text-stone-950 font-bold text-xs shadow-lg shadow-amber-500/25 cursor-pointer"
             >
-              Submit Order · €{priceSummary.grandTotal}
+              {t.submitOrderBtn} · €{priceSummary.grandTotal}
             </button>
           </div>
         )}

@@ -4,16 +4,16 @@ import { Environment, Lightformer, OrbitControls } from '@react-three/drei';
 import { Bloom, EffectComposer } from '@react-three/postprocessing';
 import * as THREE from 'three';
 import type { OrbitControls as OrbitControlsImpl } from 'three-stdlib';
-import { CANVAS_SIZES } from '../data/studioCatalog';
 import type {
   BacklightModeId,
   CameraAnglePreset,
   CanvasFinishId,
-  CanvasSizeId,
   FrameStyleId,
   GarmentColorId,
+  GarmentCutId,
   GarmentTypeId,
   PrintPlacementId,
+  ResolvedCanvasDimensions,
   RoomLightingMode,
   ScaleReferenceMode,
   StudioMode,
@@ -24,13 +24,14 @@ import { PortraitWallScene } from './PortraitWallScene';
 interface StudioCanvasProps {
   mode: StudioMode;
   artworkTexture: THREE.Texture;
-  canvasSizeId: CanvasSizeId;
+  resolvedDims: ResolvedCanvasDimensions;
   frameStyleId: FrameStyleId;
   canvasFinishId: CanvasFinishId;
   backlightModeId: BacklightModeId;
   roomLighting: RoomLightingMode;
   scaleReference: ScaleReferenceMode;
   garmentType: GarmentTypeId;
+  garmentCutId: GarmentCutId;
   garmentColorId: GarmentColorId;
   printPlacement: PrintPlacementId;
   printScale: number;
@@ -39,6 +40,7 @@ interface StudioCanvasProps {
   cameraNonce: number;
   autoRotate: boolean;
   onRegisterSnapshotFn: (fn: () => string) => void;
+  onSceneReady: () => void;
 }
 
 class CanvasErrorBoundary extends React.Component<
@@ -73,7 +75,7 @@ class CanvasErrorBoundary extends React.Component<
 
 interface CameraRigProps {
   mode: StudioMode;
-  canvasSizeId: CanvasSizeId;
+  resolvedDims: ResolvedCanvasDimensions;
   cameraAngle: CameraAnglePreset;
   cameraNonce: number;
   autoRotate: boolean;
@@ -81,7 +83,7 @@ interface CameraRigProps {
 
 const CameraRig: React.FC<CameraRigProps> = ({
   mode,
-  canvasSizeId,
+  resolvedDims,
   cameraAngle,
   cameraNonce,
   autoRotate,
@@ -95,16 +97,9 @@ const CameraRig: React.FC<CameraRigProps> = ({
 
   useEffect(() => {
     if (mode === 'canvas') {
-      const sizeOpt = CANVAS_SIZES.find((s) => s.id === canvasSizeId) ?? CANVAS_SIZES[1];
-      const cy = Math.max(1.86, 0.74 + sizeOpt.height3D / 2);
-      const dist =
-        sizeOpt.id === '100x150'
-          ? 5.15
-          : sizeOpt.id === '70x100'
-          ? 4.45
-          : sizeOpt.id === '50x70'
-          ? 3.85
-          : 3.35;
+      const cy = Math.max(1.84, 0.74 + resolvedDims.height3D / 2);
+      const maxSpan = Math.max(resolvedDims.width3D * 0.92, resolvedDims.height3D);
+      const dist = THREE.MathUtils.clamp(2.35 + maxSpan * 1.05, 3.1, 6.2);
 
       if (cameraAngle === 'angle45') {
         desiredPos.current.set(dist * 0.62, cy + 0.15, dist * 0.78);
@@ -117,7 +112,6 @@ const CameraRig: React.FC<CameraRigProps> = ({
         desiredTarget.current.set(0, cy - 0.16, 0.08);
       }
     } else {
-      // Mode B: Apparel Studio
       if (cameraAngle === 'rear') {
         desiredPos.current.set(0, 1.85, -3.05);
         desiredTarget.current.set(0, 1.72, 0);
@@ -138,7 +132,7 @@ const CameraRig: React.FC<CameraRigProps> = ({
 
     userDragging.current = false;
     transitionFrames.current = 75;
-  }, [mode, canvasSizeId, cameraAngle, cameraNonce]);
+  }, [mode, resolvedDims.width3D, resolvedDims.height3D, cameraAngle, cameraNonce]);
 
   useFrame((_, delta) => {
     if (!controlsRef.current) return;
@@ -160,7 +154,7 @@ const CameraRig: React.FC<CameraRigProps> = ({
       autoRotate={autoRotate}
       autoRotateSpeed={1.6}
       minDistance={1.05}
-      maxDistance={8.5}
+      maxDistance={9.0}
       minPolarAngle={0.32}
       maxPolarAngle={mode === 'canvas' ? Math.PI * 0.51 : Math.PI * 0.56}
       minAzimuthAngle={mode === 'canvas' ? -Math.PI * 0.44 : -Infinity}
@@ -173,12 +167,21 @@ const CameraRig: React.FC<CameraRigProps> = ({
   );
 };
 
-const SnapshotBridge: React.FC<{
+const SnapshotAndReadyBridge: React.FC<{
   onRegisterSnapshotFn: (fn: () => string) => void;
-}> = ({ onRegisterSnapshotFn }) => {
+  onSceneReady: () => void;
+}> = ({ onRegisterSnapshotFn, onSceneReady }) => {
   const { gl, scene, camera } = useThree();
+  const frameCount = useRef(0);
+  const signaled = useRef(false);
 
   useEffect(() => {
+    try {
+      gl.compile(scene, camera);
+    } catch {
+      // Ignore partial shader compile notices
+    }
+
     onRegisterSnapshotFn(() => {
       gl.render(scene, camera);
       try {
@@ -189,19 +192,30 @@ const SnapshotBridge: React.FC<{
     });
   }, [gl, scene, camera, onRegisterSnapshotFn]);
 
+  useFrame(() => {
+    if (!signaled.current) {
+      frameCount.current += 1;
+      if (frameCount.current >= 4) {
+        signaled.current = true;
+        onSceneReady();
+      }
+    }
+  });
+
   return null;
 };
 
 export const StudioCanvas: React.FC<StudioCanvasProps> = ({
   mode,
   artworkTexture,
-  canvasSizeId,
+  resolvedDims,
   frameStyleId,
   canvasFinishId,
   backlightModeId,
   roomLighting,
   scaleReference,
   garmentType,
+  garmentCutId,
   garmentColorId,
   printPlacement,
   printScale,
@@ -210,6 +224,7 @@ export const StudioCanvas: React.FC<StudioCanvasProps> = ({
   cameraNonce,
   autoRotate,
   onRegisterSnapshotFn,
+  onSceneReady,
 }) => {
   const isNight = roomLighting === 'spotlight-night';
 
@@ -219,7 +234,7 @@ export const StudioCanvas: React.FC<StudioCanvasProps> = ({
         <Canvas
           shadows
           dpr={[1, 2]}
-          camera={{ position: [0, 1.75, 3.85], fov: 40, near: 0.1, far: 80 }}
+          camera={{ position: [0, 1.75, 4.3], fov: 40, near: 0.1, far: 80 }}
           gl={{
             antialias: true,
             preserveDrawingBuffer: true,
@@ -255,7 +270,6 @@ export const StudioCanvas: React.FC<StudioCanvasProps> = ({
             ]}
           />
 
-          {/* Procedural Studio HDRI Environment for Metallic Frames & Satin Clearcoat */}
           <Environment resolution={256} frames={1}>
             <Lightformer
               form="rect"
@@ -285,18 +299,21 @@ export const StudioCanvas: React.FC<StudioCanvasProps> = ({
 
           <CameraRig
             mode={mode}
-            canvasSizeId={canvasSizeId}
+            resolvedDims={resolvedDims}
             cameraAngle={cameraAngle}
             cameraNonce={cameraNonce}
             autoRotate={autoRotate}
           />
 
-          <SnapshotBridge onRegisterSnapshotFn={onRegisterSnapshotFn} />
+          <SnapshotAndReadyBridge
+            onRegisterSnapshotFn={onRegisterSnapshotFn}
+            onSceneReady={onSceneReady}
+          />
 
           {mode === 'canvas' ? (
             <PortraitWallScene
               artworkTexture={artworkTexture}
-              canvasSizeId={canvasSizeId}
+              resolvedDims={resolvedDims}
               frameStyleId={frameStyleId}
               canvasFinishId={canvasFinishId}
               backlightModeId={backlightModeId}
@@ -307,6 +324,7 @@ export const StudioCanvas: React.FC<StudioCanvasProps> = ({
             <ApparelStudioScene
               artworkTexture={artworkTexture}
               garmentType={garmentType}
+              garmentCutId={garmentCutId}
               garmentColorId={garmentColorId}
               printPlacement={printPlacement}
               printScale={printScale}

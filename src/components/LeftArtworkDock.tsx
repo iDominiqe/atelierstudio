@@ -6,17 +6,21 @@ import {
   Type,
   X,
 } from 'lucide-react';
+import { TRANSLATIONS } from '../data/i18n';
 import { ARTWORK_PRESETS, ART_FILTERS } from '../data/studioCatalog';
 import { getPresetThumbnailUrl } from '../scene/proceduralTextures';
-import type { ArtFilterId } from '../types/studio';
+import type { ArtFilterId, LanguageCode, TextureFitMode } from '../types/studio';
 
 interface LeftArtworkDockProps {
+  lang: LanguageCode;
   selectedPresetId: string;
   onSelectPreset: (id: string) => void;
   uploadedImageName: string | null;
   uploadedPreviewUrl: string | null;
   onTriggerUpload: () => void;
   onClearUpload: () => void;
+  textureFitMode: TextureFitMode;
+  onChangeTextureFit: (fit: TextureFitMode) => void;
   artFilterId: ArtFilterId;
   onSelectFilter: (id: ArtFilterId) => void;
   customCaption: string;
@@ -24,17 +28,22 @@ interface LeftArtworkDockProps {
 }
 
 export const LeftArtworkDock: React.FC<LeftArtworkDockProps> = ({
+  lang,
   selectedPresetId,
   onSelectPreset,
   uploadedImageName,
   uploadedPreviewUrl,
   onTriggerUpload,
   onClearUpload,
+  textureFitMode,
+  onChangeTextureFit,
   artFilterId,
   onSelectFilter,
   customCaption,
   onChangeCaption,
 }) => {
+  const t = TRANSLATIONS[lang];
+
   const presetThumbs = useMemo(() => {
     const map: Record<string, string> = {};
     for (const p of ARTWORK_PRESETS) {
@@ -48,10 +57,10 @@ export const LeftArtworkDock: React.FC<LeftArtworkDockProps> = ({
       <div className="px-4 pt-3.5 pb-2.5 border-b border-white/10 flex items-center justify-between">
         <div>
           <span className="text-[10px] font-mono uppercase tracking-widest text-amber-400">
-            01 · Artwork Source
+            {t.artworkStep}
           </span>
           <h2 className="font-display font-bold text-sm text-white">
-            Portrait / Logo Studio
+            {t.artworkTitle}
           </h2>
         </div>
         <Sparkles className="w-4 h-4 text-amber-400/80" />
@@ -70,10 +79,10 @@ export const LeftArtworkDock: React.FC<LeftArtworkDockProps> = ({
             </div>
             <div className="min-w-0">
               <div className="text-xs font-semibold text-white">
-                Upload Your Photo / Logo
+                {t.uploadTitle}
               </div>
               <div className="text-[10px] text-stone-400 truncate">
-                JPG, PNG, WEBP · Instant 3D Mapping
+                {t.uploadHint}
               </div>
             </div>
           </button>
@@ -91,7 +100,7 @@ export const LeftArtworkDock: React.FC<LeftArtworkDockProps> = ({
                     {uploadedImageName}
                   </div>
                   <div className="text-[9px] text-emerald-300/80 font-mono">
-                    CUSTOM TEXTURE ACTIVE
+                    {t.customTextureActive}
                   </div>
                 </div>
               </div>
@@ -99,25 +108,52 @@ export const LeftArtworkDock: React.FC<LeftArtworkDockProps> = ({
                 type="button"
                 onClick={onClearUpload}
                 className="p-1 rounded-lg hover:bg-white/15 text-stone-300 hover:text-white cursor-pointer"
-                title="Remove uploaded image"
+                title={t.removeUploadTitle}
               >
                 <X className="w-3.5 h-3.5" />
               </button>
             </div>
           )}
+
+          {/* Cover vs Contain Texture Fit Toggle */}
+          <div className="mt-2 rounded-xl bg-stone-950/50 p-1.5 border border-white/10 space-y-1">
+            <div className="text-[9px] font-mono text-stone-400 px-1">
+              {t.textureFitLabel}
+            </div>
+            <div className="grid grid-cols-2 gap-1">
+              {(['cover', 'contain'] as const).map((fit) => {
+                const active = textureFitMode === fit;
+                return (
+                  <button
+                    key={fit}
+                    type="button"
+                    onClick={() => onChangeTextureFit(fit)}
+                    className={`px-2 py-1 rounded-lg text-[10px] font-semibold transition-all cursor-pointer truncate ${
+                      active
+                        ? 'bg-white/20 text-white'
+                        : 'text-stone-400 hover:text-stone-200 hover:bg-white/5'
+                    }`}
+                  >
+                    {fit === 'cover' ? t.fitCover : t.fitContain}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
         </div>
 
         {/* 5 Preloaded High-Res Presets */}
         <div>
           <div className="flex items-center justify-between mb-2">
             <span className="text-[11px] font-semibold text-stone-300">
-              Curated Studio Presets
+              {t.curatedPresets}
             </span>
             <span className="text-[10px] font-mono text-stone-400">5 HD</span>
           </div>
           <div className="grid grid-cols-1 gap-1.5">
             {ARTWORK_PRESETS.map((preset) => {
               const active = !uploadedImageName && selectedPresetId === preset.id;
+              const loc = t.presets[preset.id];
               return (
                 <button
                   key={preset.id}
@@ -131,18 +167,18 @@ export const LeftArtworkDock: React.FC<LeftArtworkDockProps> = ({
                 >
                   <img
                     src={presetThumbs[preset.id]}
-                    alt={preset.title}
+                    alt={loc.title}
                     className="w-10 h-12 rounded-lg object-cover shrink-0 border border-white/15"
                   />
                   <div className="min-w-0 flex-1">
                     <div className="text-xs font-semibold text-white truncate">
-                      {preset.title}
+                      {loc.title}
                     </div>
                     <div className="text-[10px] text-stone-400 truncate">
-                      {preset.artistTag}
+                      {loc.artistTag}
                     </div>
                     <span className="inline-block mt-0.5 text-[9px] font-mono uppercase tracking-wider text-amber-300/90">
-                      {preset.category}
+                      {loc.category}
                     </span>
                   </div>
                   {active && (
@@ -156,17 +192,18 @@ export const LeftArtworkDock: React.FC<LeftArtworkDockProps> = ({
           </div>
         </div>
 
-        {/* Artistic Style Filter (Bonus Feature) */}
+        {/* Artistic Style Filter */}
         <div>
           <div className="flex items-center justify-between mb-2">
             <span className="text-[11px] font-semibold text-stone-300">
-              Artistic Finish Style
+              {t.artStyleLabel}
             </span>
-            <span className="text-[10px] font-mono text-amber-300">LIVE FX</span>
+            <span className="text-[10px] font-mono text-amber-300">{t.liveFx}</span>
           </div>
           <div className="space-y-1">
             {ART_FILTERS.map((filter) => {
               const active = artFilterId === filter.id;
+              const loc = t.filters[filter.id];
               return (
                 <button
                   key={filter.id}
@@ -185,15 +222,15 @@ export const LeftArtworkDock: React.FC<LeftArtworkDockProps> = ({
                     />
                     <div className="min-w-0">
                       <div className="text-[11px] font-semibold text-white truncate">
-                        {filter.name}
+                        {loc.name}
                       </div>
                       <div className="text-[9px] text-stone-400 truncate">
-                        {filter.subtitle}
+                        {loc.subtitle}
                       </div>
                     </div>
                   </div>
-                  <span className="text-[10px] font-mono font-semibold text-amber-300 shrink-0 ml-1">
-                    {filter.price === 0 ? 'Incl.' : `+€${filter.price}`}
+                  <span className="text-[10px] font-mono font-semibold text-amber-300 shrink-0 ml-1 whitespace-nowrap">
+                    {filter.price === 0 ? t.included : `+€${filter.price}`}
                   </span>
                 </button>
               );
@@ -201,7 +238,7 @@ export const LeftArtworkDock: React.FC<LeftArtworkDockProps> = ({
           </div>
         </div>
 
-        {/* Custom Atelier Typography Signature (Bonus Feature) */}
+        {/* Custom Atelier Typography Signature */}
         <div className="rounded-2xl bg-white/[0.04] border border-white/10 p-2.5">
           <div className="flex items-center justify-between mb-1.5">
             <label
@@ -209,7 +246,7 @@ export const LeftArtworkDock: React.FC<LeftArtworkDockProps> = ({
               className="text-[11px] font-semibold text-stone-200 flex items-center gap-1.5"
             >
               <Type className="w-3.5 h-3.5 text-amber-400" />
-              <span>Custom Print Signature</span>
+              <span>{t.customSignatureLabel}</span>
             </label>
             <span className="text-[10px] font-mono text-amber-300">+€5</span>
           </div>
@@ -219,11 +256,11 @@ export const LeftArtworkDock: React.FC<LeftArtworkDockProps> = ({
             maxLength={32}
             value={customCaption}
             onChange={(e) => onChangeCaption(e.target.value)}
-            placeholder="e.g. ATELIER · MMXXVI"
+            placeholder={t.customSignaturePlaceholder}
             className="w-full rounded-xl bg-stone-950/70 border border-white/10 focus:border-amber-400/60 outline-none px-2.5 py-1.5 text-xs text-white placeholder:text-stone-500"
           />
           <p className="text-[9px] text-stone-400 mt-1">
-            Stamps a serif museum inscription onto your artwork or garment print.
+            {t.customSignatureHint}
           </p>
         </div>
       </div>

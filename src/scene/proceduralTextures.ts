@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import type { ArtFilterId } from '../types/studio';
+import type { ArtFilterId, TextureFitMode } from '../types/studio';
 
 const ART_W = 1024;
 const ART_H = 1365;
@@ -16,7 +16,6 @@ function makeOffscreen(w: number, h: number): [HTMLCanvasElement, CanvasRenderin
 }
 
 function drawGoldenSovereign(ctx: CanvasRenderingContext2D, w: number, h: number) {
-  // Deep chiaroscuro background
   const bg = ctx.createRadialGradient(w * 0.5, h * 0.36, 40, w * 0.5, h * 0.45, w * 0.85);
   bg.addColorStop(0, '#5a3a1a');
   bg.addColorStop(0.42, '#2a1a0e');
@@ -24,10 +23,9 @@ function drawGoldenSovereign(ctx: CanvasRenderingContext2D, w: number, h: number
   ctx.fillStyle = bg;
   ctx.fillRect(0, 0, w, h);
 
-  // Painterly oil brushwork backdrop
   for (let i = 0; i < 180; i++) {
-    const x = ((i * 197) % w);
-    const y = ((i * 313) % h);
+    const x = (i * 197) % w;
+    const y = (i * 313) % h;
     const len = 40 + (i % 7) * 22;
     ctx.save();
     ctx.translate(x, y);
@@ -37,7 +35,6 @@ function drawGoldenSovereign(ctx: CanvasRenderingContext2D, w: number, h: number
     ctx.restore();
   }
 
-  // Gold leaf celestial halo behind subject
   ctx.save();
   ctx.strokeStyle = 'rgba(234, 179, 8, 0.72)';
   ctx.lineWidth = 6;
@@ -51,7 +48,6 @@ function drawGoldenSovereign(ctx: CanvasRenderingContext2D, w: number, h: number
   ctx.arc(w * 0.5, h * 0.35, w * 0.31, 0, Math.PI * 2);
   ctx.stroke();
 
-  // Radiating gold rays
   for (let a = 0; a < 24; a++) {
     const ang = (a / 24) * Math.PI * 2;
     ctx.strokeStyle = 'rgba(245, 158, 11, 0.16)';
@@ -63,13 +59,11 @@ function drawGoldenSovereign(ctx: CanvasRenderingContext2D, w: number, h: number
   }
   ctx.restore();
 
-  // Sculpted Baroque portrait bust silhouette + chiaroscuro shading
   const skinGrad = ctx.createRadialGradient(w * 0.45, h * 0.31, 18, w * 0.5, h * 0.36, 220);
   skinGrad.addColorStop(0, '#f3d2b3');
   skinGrad.addColorStop(0.55, '#c48b61');
   skinGrad.addColorStop(1, '#3b2114');
 
-  // Draped velvet robe & gold shoulder embroidery
   const robeGrad = ctx.createLinearGradient(w * 0.2, h * 0.52, w * 0.8, h * 0.98);
   robeGrad.addColorStop(0, '#5c1f1a');
   robeGrad.addColorStop(0.5, '#2b0d0c');
@@ -82,7 +76,6 @@ function drawGoldenSovereign(ctx: CanvasRenderingContext2D, w: number, h: number
   ctx.closePath();
   ctx.fill();
 
-  // Gold collar lapel
   ctx.strokeStyle = '#eab308';
   ctx.lineWidth = 10;
   ctx.beginPath();
@@ -90,19 +83,16 @@ function drawGoldenSovereign(ctx: CanvasRenderingContext2D, w: number, h: number
   ctx.quadraticCurveTo(w * 0.5, h * 0.74, w * 0.65, h * 0.58);
   ctx.stroke();
 
-  // Neck
   ctx.fillStyle = '#9f6b47';
   ctx.beginPath();
   ctx.roundRect(w * 0.44, h * 0.43, w * 0.12, h * 0.15, 24);
   ctx.fill();
 
-  // Head
   ctx.fillStyle = skinGrad;
   ctx.beginPath();
   ctx.ellipse(w * 0.5, h * 0.34, w * 0.135, h * 0.128, 0, 0, Math.PI * 2);
   ctx.fill();
 
-  // Crown / laurel gold accent
   ctx.fillStyle = '#f59e0b';
   for (let i = -4; i <= 4; i++) {
     ctx.save();
@@ -114,7 +104,6 @@ function drawGoldenSovereign(ctx: CanvasRenderingContext2D, w: number, h: number
     ctx.restore();
   }
 
-  // Expressive painterly face contour & eyes
   ctx.fillStyle = '#1c100a';
   ctx.beginPath();
   ctx.ellipse(w * 0.45, h * 0.33, 12, 6, 0, 0, Math.PI * 2);
@@ -127,7 +116,6 @@ function drawGoldenSovereign(ctx: CanvasRenderingContext2D, w: number, h: number
   ctx.arc(w * 0.5, h * 0.35, w * 0.135, Math.PI * 0.7, Math.PI * 1.45);
   ctx.stroke();
 
-  // Museum border trim
   ctx.strokeStyle = 'rgba(212, 175, 55, 0.45)';
   ctx.lineWidth = 4;
   ctx.strokeRect(36, 36, w - 72, h - 72);
@@ -141,7 +129,6 @@ function drawCyberBotanica(ctx: CanvasRenderingContext2D, w: number, h: number) 
   ctx.fillStyle = bg;
   ctx.fillRect(0, 0, w, h);
 
-  // Subtle synth grid
   ctx.strokeStyle = 'rgba(34, 211, 238, 0.08)';
   ctx.lineWidth = 1.5;
   for (let x = 0; x < w; x += 64) {
@@ -157,7 +144,6 @@ function drawCyberBotanica(ctx: CanvasRenderingContext2D, w: number, h: number) 
     ctx.stroke();
   }
 
-  // Glowing neon ring
   const glow = ctx.createRadialGradient(w * 0.5, h * 0.44, 60, w * 0.5, h * 0.44, 420);
   glow.addColorStop(0, 'rgba(34, 211, 238, 0.45)');
   glow.addColorStop(0.5, 'rgba(232, 121, 249, 0.25)');
@@ -177,7 +163,6 @@ function drawCyberBotanica(ctx: CanvasRenderingContext2D, w: number, h: number) 
   ctx.arc(w * 0.5, h * 0.42, 290, 0.4, Math.PI * 1.7);
   ctx.stroke();
 
-  // Futuristic cybernetic bust
   const bustGrad = ctx.createLinearGradient(w * 0.3, h * 0.2, w * 0.7, h * 0.9);
   bustGrad.addColorStop(0, '#22d3ee');
   bustGrad.addColorStop(0.48, '#312e81');
@@ -191,7 +176,6 @@ function drawCyberBotanica(ctx: CanvasRenderingContext2D, w: number, h: number) 
   ctx.closePath();
   ctx.fill();
 
-  // Head silhouette with neon visor
   ctx.fillStyle = '#111827';
   ctx.beginPath();
   ctx.ellipse(w * 0.5, h * 0.37, 130, 165, 0, 0, Math.PI * 2);
@@ -201,7 +185,6 @@ function drawCyberBotanica(ctx: CanvasRenderingContext2D, w: number, h: number) 
   ctx.lineWidth = 6;
   ctx.stroke();
 
-  // Neon visor slit
   const visorGrad = ctx.createLinearGradient(w * 0.37, 0, w * 0.63, 0);
   visorGrad.addColorStop(0, '#22d3ee');
   visorGrad.addColorStop(0.5, '#f0abfc');
@@ -211,7 +194,6 @@ function drawCyberBotanica(ctx: CanvasRenderingContext2D, w: number, h: number) 
   ctx.roundRect(w * 0.37, h * 0.33, w * 0.26, 36, 18);
   ctx.fill();
 
-  // Bioluminescent floral tendrils
   for (let i = 0; i < 12; i++) {
     const ang = (i / 12) * Math.PI * 2;
     const bx = w * 0.5 + Math.cos(ang) * 215;
@@ -232,19 +214,16 @@ function drawAtelierNoir(ctx: CanvasRenderingContext2D, w: number, h: number) {
   ctx.fillStyle = '#ecebe6';
   ctx.fillRect(0, 0, w, h);
 
-  // Brutalist architectural arch & shadow
   ctx.fillStyle = '#141519';
   ctx.beginPath();
   ctx.roundRect(80, 90, w - 160, h - 220, [420, 420, 0, 0]);
   ctx.fill();
 
-  // High-contrast silver spotlight gradient
   const spot = ctx.createRadialGradient(w * 0.44, h * 0.36, 20, w * 0.5, h * 0.42, 380);
   spot.addColorStop(0, '#f8fafc');
   spot.addColorStop(0.55, '#94a3b8');
   spot.addColorStop(1, '#141519');
 
-  // Sculpted monochrome figure
   ctx.fillStyle = '#090a0d';
   ctx.beginPath();
   ctx.moveTo(w * 0.18, h - 130);
@@ -258,7 +237,6 @@ function drawAtelierNoir(ctx: CanvasRenderingContext2D, w: number, h: number) {
   ctx.ellipse(w * 0.5, h * 0.38, 122, 155, 0, 0, Math.PI * 2);
   ctx.fill();
 
-  // Diagonal editorial shadow slash
   ctx.fillStyle = 'rgba(15, 17, 23, 0.72)';
   ctx.beginPath();
   ctx.moveTo(w * 0.5, h * 0.22);
@@ -268,7 +246,6 @@ function drawAtelierNoir(ctx: CanvasRenderingContext2D, w: number, h: number) {
   ctx.closePath();
   ctx.fill();
 
-  // Crisp gallery typography
   ctx.fillStyle = '#141519';
   ctx.font = '600 44px "Cormorant Garamond", Georgia, serif';
   ctx.textAlign = 'center';
@@ -279,7 +256,6 @@ function drawAstralSamurai(ctx: CanvasRenderingContext2D, w: number, h: number) 
   ctx.fillStyle = '#0d0b10';
   ctx.fillRect(0, 0, w, h);
 
-  // Rising crimson sun
   const sun = ctx.createRadialGradient(w * 0.5, h * 0.42, 40, w * 0.5, h * 0.42, 320);
   sun.addColorStop(0, '#fbbf24');
   sun.addColorStop(0.45, '#dc2626');
@@ -289,14 +265,12 @@ function drawAstralSamurai(ctx: CanvasRenderingContext2D, w: number, h: number) 
   ctx.arc(w * 0.5, h * 0.42, 275, 0, Math.PI * 2);
   ctx.fill();
 
-  // Geometric crest rings
   ctx.strokeStyle = '#fbbf24';
   ctx.lineWidth = 6;
   ctx.beginPath();
   ctx.arc(w * 0.5, h * 0.42, 315, 0, Math.PI * 2);
   ctx.stroke();
 
-  // Samurai helmet silhouette (Kabuto)
   ctx.fillStyle = '#0f0e13';
   ctx.beginPath();
   ctx.moveTo(w * 0.22, h * 0.88);
@@ -309,7 +283,6 @@ function drawAstralSamurai(ctx: CanvasRenderingContext2D, w: number, h: number) 
   ctx.closePath();
   ctx.fill();
 
-  // Gold crescent horns (Kuwagata)
   ctx.fillStyle = '#f59e0b';
   ctx.beginPath();
   ctx.moveTo(w * 0.5, h * 0.3);
@@ -325,7 +298,6 @@ function drawAstralSamurai(ctx: CanvasRenderingContext2D, w: number, h: number) 
   ctx.closePath();
   ctx.fill();
 
-  // Glowing crimson mask eyes
   ctx.fillStyle = '#fef08a';
   ctx.fillRect(w * 0.42, h * 0.44, 52, 10);
   ctx.fillRect(w * 0.53, h * 0.44, 52, 10);
@@ -337,17 +309,14 @@ function drawAstralSamurai(ctx: CanvasRenderingContext2D, w: number, h: number) 
 }
 
 function drawVelvetHorizon(ctx: CanvasRenderingContext2D, w: number, h: number) {
-  // Warm modernist color-field canvas
   ctx.fillStyle = '#f5efe6';
   ctx.fillRect(0, 0, w, h);
 
-  // Cobalt shape
   ctx.fillStyle = '#1d3557';
   ctx.beginPath();
   ctx.roundRect(95, 110, w - 190, h * 0.46, 36);
   ctx.fill();
 
-  // Terracotta sun disc
   const terra = ctx.createLinearGradient(0, h * 0.2, 0, h * 0.55);
   terra.addColorStop(0, '#f97316');
   terra.addColorStop(1, '#c2410c');
@@ -356,7 +325,6 @@ function drawVelvetHorizon(ctx: CanvasRenderingContext2D, w: number, h: number) 
   ctx.arc(w * 0.54, h * 0.34, 175, 0, Math.PI * 2);
   ctx.fill();
 
-  // Ochre sweeping abstract wave
   ctx.fillStyle = '#eab308';
   ctx.beginPath();
   ctx.moveTo(95, h * 0.62);
@@ -366,13 +334,11 @@ function drawVelvetHorizon(ctx: CanvasRenderingContext2D, w: number, h: number) 
   ctx.closePath();
   ctx.fill();
 
-  // Deep espresso foreground arch
   ctx.fillStyle = '#291f1e';
   ctx.beginPath();
   ctx.arc(w * 0.36, h - 130, 260, Math.PI, 0);
   ctx.fill();
 
-  // Fine impasto horizontal brush lines
   for (let y = 130; y < h - 140; y += 16) {
     ctx.strokeStyle = y % 32 === 0 ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.06)';
     ctx.lineWidth = 3;
@@ -435,7 +401,6 @@ function applyArtFilter(ctx: CanvasRenderingContext2D, filter: ArtFilterId, w: n
     }
     ctx.putImageData(img, 0, 0);
   } else if (filter === 'oil-impasto') {
-    // Warm painterly richness & tactile brushstroke highlights
     ctx.save();
     ctx.globalCompositeOperation = 'soft-light';
     ctx.fillStyle = 'rgba(245, 158, 11, 0.26)';
@@ -475,50 +440,92 @@ function applyArtFilter(ctx: CanvasRenderingContext2D, filter: ArtFilterId, w: n
   }
 }
 
+/**
+ * Renders the active preset or uploaded photo into an aspect-matched offscreen canvas
+ * using cover or contain fit so the image is NEVER distorted across Portrait, Landscape,
+ * or Custom Dimensions.
+ */
 export function renderCompositedArtworkCanvas(params: {
   presetId: string;
   uploadedImage: HTMLImageElement | null;
   filterId: ArtFilterId;
   customCaption: string;
+  targetAspect?: number;
+  fitMode?: TextureFitMode;
 }): HTMLCanvasElement {
-  const [c, ctx] = makeOffscreen(ART_W, ART_H);
+  const aspect = Math.max(0.25, Math.min(4.0, params.targetAspect ?? 0.75));
+  const fitMode: TextureFitMode = params.fitMode ?? 'cover';
 
-  if (params.uploadedImage) {
-    // Cover-fit uploaded image neatly into 3:4 portrait canvas
-    const img = params.uploadedImage;
-    const iw = img.naturalWidth || img.width || ART_W;
-    const ih = img.naturalHeight || img.height || ART_H;
-    const scale = Math.max(ART_W / iw, ART_H / ih);
-    const dw = iw * scale;
-    const dh = ih * scale;
-    const dx = (ART_W - dw) / 2;
-    const dy = (ART_H - dh) / 2;
-    ctx.fillStyle = '#111318';
-    ctx.fillRect(0, 0, ART_W, ART_H);
-    ctx.drawImage(img, dx, dy, dw, dh);
+  let outW = 1024;
+  let outH = 1365;
+  if (aspect >= 1) {
+    outW = 1280;
+    outH = Math.max(320, Math.round(outW / aspect));
   } else {
-    const base = getPresetCanvas(params.presetId);
-    ctx.drawImage(base, 0, 0);
+    outH = 1280;
+    outW = Math.max(320, Math.round(outH * aspect));
   }
 
-  applyArtFilter(ctx, params.filterId, ART_W, ART_H);
+  const [c, ctx] = makeOffscreen(outW, outH);
+  const src: HTMLCanvasElement | HTMLImageElement =
+    params.uploadedImage ?? getPresetCanvas(params.presetId);
+
+  const srcW =
+    src instanceof HTMLImageElement
+      ? src.naturalWidth || src.width || ART_W
+      : src.width;
+  const srcH =
+    src instanceof HTMLImageElement
+      ? src.naturalHeight || src.height || ART_H
+      : src.height;
+
+  // Background behind 'contain' mat or dark studio ground
+  if (fitMode === 'contain') {
+    ctx.fillStyle = '#f3efe7';
+    ctx.fillRect(0, 0, outW, outH);
+    const pad = Math.round(Math.min(outW, outH) * 0.055);
+    const availW = outW - pad * 2;
+    const availH = outH - pad * 2;
+    const scale = Math.min(availW / srcW, availH / srcH);
+    const dw = srcW * scale;
+    const dh = srcH * scale;
+    const dx = (outW - dw) / 2;
+    const dy = (outH - dh) / 2;
+    ctx.drawImage(src, dx, dy, dw, dh);
+    ctx.strokeStyle = 'rgba(20, 20, 24, 0.14)';
+    ctx.lineWidth = 3;
+    ctx.strokeRect(dx, dy, dw, dh);
+  } else {
+    ctx.fillStyle = '#111318';
+    ctx.fillRect(0, 0, outW, outH);
+    const scale = Math.max(outW / srcW, outH / srcH);
+    const dw = srcW * scale;
+    const dh = srcH * scale;
+    const dx = (outW - dw) / 2;
+    // Slight top bias for portrait headrooms
+    const dy = (outH - dh) * 0.35;
+    ctx.drawImage(src, dx, dy, dw, dh);
+  }
+
+  applyArtFilter(ctx, params.filterId, outW, outH);
 
   const caption = params.customCaption.trim();
   if (caption.length > 0) {
     ctx.save();
-    const bannerH = 92;
-    const barGrad = ctx.createLinearGradient(0, ART_H - bannerH - 20, 0, ART_H);
+    const bannerH = Math.max(64, Math.round(outH * 0.08));
+    const barGrad = ctx.createLinearGradient(0, outH - bannerH - 18, 0, outH);
     barGrad.addColorStop(0, 'rgba(8, 10, 14, 0)');
     barGrad.addColorStop(0.4, 'rgba(8, 10, 14, 0.72)');
     barGrad.addColorStop(1, 'rgba(8, 10, 14, 0.92)');
     ctx.fillStyle = barGrad;
-    ctx.fillRect(0, ART_H - bannerH - 20, ART_W, bannerH + 20);
+    ctx.fillRect(0, outH - bannerH - 18, outW, bannerH + 18);
 
     ctx.fillStyle = '#fef3c7';
-    ctx.font = '600 36px "Cormorant Garamond", Georgia, serif';
+    const fontSize = Math.max(22, Math.min(40, Math.round(Math.min(outW, outH) * 0.038)));
+    ctx.font = `600 ${fontSize}px "Cormorant Garamond", Georgia, serif`;
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
-    ctx.fillText(caption.toUpperCase(), ART_W * 0.5, ART_H - 46, ART_W - 110);
+    ctx.fillText(caption.toUpperCase(), outW * 0.5, outH - bannerH * 0.5, outW - 80);
     ctx.restore();
   }
 
@@ -535,7 +542,6 @@ export function getCanvasWeaveNormalMap(): THREE.CanvasTexture {
   const img = ctx.createImageData(size, size);
   const d = img.data;
 
-  // Cross-hatch woven linen normal map
   for (let y = 0; y < size; y++) {
     for (let x = 0; x < size; x++) {
       const idx = (y * size + x) * 4;
@@ -569,7 +575,6 @@ export function getCottonFabricNormalMap(): THREE.CanvasTexture {
   const img = ctx.createImageData(size, size);
   const d = img.data;
 
-  // Fine jersey knit V-stitch normal map
   for (let y = 0; y < size; y++) {
     for (let x = 0; x < size; x++) {
       const idx = (y * size + x) * 4;
@@ -601,7 +606,6 @@ export function getGalleryWallTexture(): THREE.CanvasTexture {
   ctx.fillStyle = '#e5e2dc';
   ctx.fillRect(0, 0, size, size);
 
-  // Subtle Venetian limewash plaster mottling
   for (let i = 0; i < 650; i++) {
     const x = (i * 199) % size;
     const y = (i * 307) % size;

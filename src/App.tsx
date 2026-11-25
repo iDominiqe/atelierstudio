@@ -5,18 +5,15 @@ import { FullscreenPreviewBar } from './components/FullscreenPreviewBar';
 import { LeftArtworkDock } from './components/LeftArtworkDock';
 import { OrderCheckoutDrawer } from './components/OrderCheckoutDrawer';
 import { RightConfiguratorDock } from './components/RightConfiguratorDock';
+import { StudioPreloader } from './components/StudioPreloader';
 import { TopStudioHeader } from './components/TopStudioHeader';
+import { TRANSLATIONS } from './data/i18n';
 import {
   ARTWORK_PRESETS,
-  ART_FILTERS,
-  BACKLIGHT_OPTIONS,
-  CANVAS_FINISHES,
-  CANVAS_SIZES,
-  FRAME_STYLES,
-  GARMENT_COLORS,
-  GARMENT_TYPES,
+  GARMENT_CUTS,
   PRINT_PLACEMENTS,
   calculatePriceSummary,
+  resolveCanvasDimensions,
   type GarmentSizeLabel,
 } from './data/studioCatalog';
 import { StudioCanvas } from './scene/StudioCanvas';
@@ -26,17 +23,25 @@ import type {
   BacklightModeId,
   CameraAnglePreset,
   CanvasFinishId,
+  CanvasOrientation,
   CanvasSizeId,
   FrameStyleId,
   GarmentColorId,
+  GarmentCutId,
   GarmentTypeId,
+  LanguageCode,
   PrintPlacementId,
   RoomLightingMode,
   ScaleReferenceMode,
   StudioMode,
+  TextureFitMode,
 } from './types/studio';
 
 export function App() {
+  // Language & Preloader
+  const [lang, setLang] = useState<LanguageCode>('en');
+  const [sceneReady, setSceneReady] = useState(false);
+
   // Studio Mode
   const [mode, setMode] = useState<StudioMode>('canvas');
   const [isFullscreenPreview, setIsFullscreenPreview] = useState(false);
@@ -46,12 +51,17 @@ export function App() {
   const [uploadedImage, setUploadedImage] = useState<HTMLImageElement | null>(null);
   const [uploadedImageName, setUploadedImageName] = useState<string | null>(null);
   const [uploadedPreviewUrl, setUploadedPreviewUrl] = useState<string | null>(null);
+  const [textureFitMode, setTextureFitMode] = useState<TextureFitMode>('cover');
   const [artFilterId, setArtFilterId] = useState<ArtFilterId>('original');
   const [customCaption, setCustomCaption] = useState<string>('');
   const [isDragActive, setIsDragActive] = useState(false);
 
   // Mode A: Canvas & Frame State
   const [canvasSizeId, setCanvasSizeId] = useState<CanvasSizeId>('70x100');
+  const [canvasOrientation, setCanvasOrientation] =
+    useState<CanvasOrientation>('portrait');
+  const [customWidthCm, setCustomWidthCm] = useState<number>(80);
+  const [customHeightCm, setCustomHeightCm] = useState<number>(110);
   const [frameStyleId, setFrameStyleId] = useState<FrameStyleId>('brushed-gold');
   const [canvasFinishId, setCanvasFinishId] = useState<CanvasFinishId>('matte');
   const [backlightModeId, setBacklightModeId] = useState<BacklightModeId>('warm-white');
@@ -60,6 +70,7 @@ export function App() {
 
   // Mode B: Apparel State
   const [garmentType, setGarmentType] = useState<GarmentTypeId>('hoodie');
+  const [garmentCutId, setGarmentCutId] = useState<GarmentCutId>('classic-hoodie');
   const [garmentColorId, setGarmentColorId] = useState<GarmentColorId>('jet-black');
   const [garmentSize, setGarmentSize] = useState<GarmentSizeLabel>('L');
   const [printPlacement, setPrintPlacement] = useState<PrintPlacementId>('center-chest');
@@ -80,6 +91,23 @@ export function App() {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const captureSnapshotFnRef = useRef<(() => string) | null>(null);
 
+  const t = TRANSLATIONS[lang];
+
+  // Resolved real-time 3D + CM dimensions
+  const resolvedDims = useMemo(
+    () =>
+      resolveCanvasDimensions(
+        canvasSizeId,
+        canvasOrientation,
+        customWidthCm,
+        customHeightCm
+      ),
+    [canvasSizeId, canvasOrientation, customWidthCm, customHeightCm]
+  );
+
+  // Aspect ratio passed to compositor (Portrait/Landscape/Custom for Canvas; 3:4 for Apparel)
+  const targetArtworkAspect = mode === 'canvas' ? resolvedDims.aspectRatio : 0.75;
+
   // Build & cache live Three.js artwork texture
   const artworkTexture = useMemo(() => {
     const offscreen = renderCompositedArtworkCanvas({
@@ -87,13 +115,22 @@ export function App() {
       uploadedImage,
       filterId: artFilterId,
       customCaption,
+      targetAspect: targetArtworkAspect,
+      fitMode: textureFitMode,
     });
     const tex = new THREE.CanvasTexture(offscreen);
     tex.colorSpace = THREE.SRGBColorSpace;
     tex.anisotropy = 8;
     tex.needsUpdate = true;
     return tex;
-  }, [selectedPresetId, uploadedImage, artFilterId, customCaption]);
+  }, [
+    selectedPresetId,
+    uploadedImage,
+    artFilterId,
+    customCaption,
+    targetArtworkAspect,
+    textureFitMode,
+  ]);
 
   useEffect(() => {
     return () => {
@@ -113,26 +150,36 @@ export function App() {
   const priceSummary = useMemo(
     () =>
       calculatePriceSummary({
+        lang,
         mode,
         canvasSizeId,
+        canvasOrientation,
+        customWidthCm,
+        customHeightCm,
         frameStyleId,
         canvasFinishId,
         artFilterId,
         backlightModeId,
         garmentTypeId: garmentType,
+        garmentCutId,
         printPlacementId: printPlacement,
         printScale,
         hasCustomCaption: customCaption.trim().length > 0,
         quantity,
       }),
     [
+      lang,
       mode,
       canvasSizeId,
+      canvasOrientation,
+      customWidthCm,
+      customHeightCm,
       frameStyleId,
       canvasFinishId,
       artFilterId,
       backlightModeId,
       garmentType,
+      garmentCutId,
       printPlacement,
       printScale,
       customCaption,
@@ -140,55 +187,54 @@ export function App() {
     ]
   );
 
-  // Human-readable active configuration summary
   const activeArtworkTitle = useMemo(() => {
     if (uploadedImageName) return uploadedImageName;
-    return (
-      ARTWORK_PRESETS.find((p) => p.id === selectedPresetId)?.title ?? 'Custom Artwork'
-    );
-  }, [uploadedImageName, selectedPresetId]);
+    return t.presets[selectedPresetId]?.title ?? 'Custom Artwork';
+  }, [uploadedImageName, selectedPresetId, t]);
 
-  const activeFilterName =
-    ART_FILTERS.find((f) => f.id === artFilterId)?.name ?? 'Original Studio HD';
+  const activeFilterName = t.filters[artFilterId].name;
 
   const configurationSummary = useMemo(() => {
     if (mode === 'canvas') {
-      const sz = CANVAS_SIZES.find((s) => s.id === canvasSizeId)!;
-      const fr = FRAME_STYLES.find((f) => f.id === frameStyleId)!;
-      const fn = CANVAS_FINISHES.find((c) => c.id === canvasFinishId)!;
-      const bl = BACKLIGHT_OPTIONS.find((b) => b.id === backlightModeId)!;
       return [
-        `Size: ${sz.label}`,
-        `Frame: ${fr.name}`,
-        `Surface: ${fn.name}`,
-        `LED Backlight: ${bl.name}`,
-        `Lighting: ${roomLighting === 'spotlight-night' ? 'Night Spotlight' : 'Daylight'}`,
+        `${resolvedDims.label} (${
+          resolvedDims.orientation === 'landscape'
+            ? t.orientationLandscape
+            : t.orientationPortrait
+        })`,
+        t.frames[frameStyleId].name,
+        t.finishes[canvasFinishId].name,
+        t.backlights[backlightModeId].name,
+        roomLighting === 'spotlight-night'
+          ? t.nightSpotlightBtn
+          : t.daylightGalleryBtn,
       ];
     } else {
-      const gm = GARMENT_TYPES.find((g) => g.id === garmentType)!;
-      const col = GARMENT_COLORS.find((c) => c.id === garmentColorId)!;
-      const pl = PRINT_PLACEMENTS.find((p) => p.id === printPlacement)!;
       return [
-        `${gm.name} (${garmentSize})`,
-        `Color: ${col.name}`,
-        `Placement: ${pl.name}`,
-        `Scale: ${Math.round(printScale * 100)}%`,
-        `Offset: ${printOffsetY > 0 ? `+${printOffsetY}` : printOffsetY} cm`,
+        `${t.garmentTypes[garmentType].name} (${garmentSize})`,
+        t.garmentCuts[garmentCutId].name,
+        t.garmentColors[garmentColorId],
+        t.placements[printPlacement].name,
+        `${Math.round(printScale * 100)}% / ${
+          printOffsetY > 0 ? `+${printOffsetY}` : printOffsetY
+        } cm`,
       ];
     }
   }, [
     mode,
-    canvasSizeId,
+    resolvedDims,
     frameStyleId,
     canvasFinishId,
     backlightModeId,
     roomLighting,
     garmentType,
     garmentSize,
+    garmentCutId,
     garmentColorId,
     printPlacement,
     printScale,
     printOffsetY,
+    t,
   ]);
 
   // Handlers
@@ -229,6 +275,28 @@ export function App() {
     setCameraNonce((n) => n + 1);
   };
 
+  const handleSelectOrientation = (ori: CanvasOrientation) => {
+    setCanvasOrientation(ori);
+    if (canvasSizeId === 'custom') {
+      if (ori === 'landscape' && customWidthCm < customHeightCm) {
+        setCustomWidthCm(customHeightCm);
+        setCustomHeightCm(customWidthCm);
+      } else if (ori === 'portrait' && customWidthCm > customHeightCm) {
+        setCustomWidthCm(customHeightCm);
+        setCustomHeightCm(customWidthCm);
+      }
+    }
+    setCameraNonce((n) => n + 1);
+  };
+
+  const handleSelectGarmentType = (nextType: GarmentTypeId) => {
+    setGarmentType(nextType);
+    const firstMatchingCut = GARMENT_CUTS.find((c) => c.garmentType === nextType);
+    if (firstMatchingCut) {
+      setGarmentCutId(firstMatchingCut.id);
+    }
+  };
+
   const handleSelectPrintPlacement = (id: PrintPlacementId) => {
     setPrintPlacement(id);
     const opt = PRINT_PLACEMENTS.find((p) => p.id === id);
@@ -252,8 +320,7 @@ export function App() {
   }, []);
 
   const buildSpecCardDataUrl = useCallback(() => {
-    const raw = captureSnapshotFnRef.current ? captureSnapshotFnRef.current() : '';
-    return raw;
+    return captureSnapshotFnRef.current ? captureSnapshotFnRef.current() : '';
   }, []);
 
   const handleDownloadSpecCard = useCallback(() => {
@@ -270,13 +337,11 @@ export function App() {
       ctx.fillStyle = '#0c0e14';
       ctx.fillRect(0, 0, card.width, card.height);
 
-      // Draw 3D viewport capture
       const scale = Math.max(1280 / img.width, 680 / img.height);
       const dw = img.width * scale;
       const dh = img.height * scale;
       ctx.drawImage(img, (1280 - dw) / 2, (680 - dh) / 2, dw, dh);
 
-      // Spec footer bar
       ctx.fillStyle = '#11141d';
       ctx.fillRect(0, 680, 1280, 140);
       ctx.fillStyle = '#f59e0b';
@@ -304,11 +369,18 @@ export function App() {
       link.href = card.toDataURL('image/png');
       link.click();
 
-      setSnapshotToast('Preview Card Saved (PNG)');
+      setSnapshotToast(t.previewCardSavedToast);
       setTimeout(() => setSnapshotToast(null), 2600);
     };
     img.src = rawDataUrl;
-  }, [activeArtworkTitle, buildSpecCardDataUrl, configurationSummary, mode, priceSummary.grandTotal]);
+  }, [
+    activeArtworkTitle,
+    buildSpecCardDataUrl,
+    configurationSummary,
+    mode,
+    priceSummary.grandTotal,
+    t.previewCardSavedToast,
+  ]);
 
   const handleOpenCheckout = () => {
     const snap = buildSpecCardDataUrl();
@@ -340,6 +412,9 @@ export function App() {
         handleFileUpload(file);
       }}
     >
+      {/* Branded 3D Asset Preloader */}
+      <StudioPreloader sceneReady={sceneReady} lang={lang} />
+
       {/* Hidden File Upload Input */}
       <input
         ref={fileInputRef}
@@ -356,13 +431,14 @@ export function App() {
       <StudioCanvas
         mode={mode}
         artworkTexture={artworkTexture}
-        canvasSizeId={canvasSizeId}
+        resolvedDims={resolvedDims}
         frameStyleId={frameStyleId}
         canvasFinishId={canvasFinishId}
         backlightModeId={backlightModeId}
         roomLighting={roomLighting}
         scaleReference={scaleReference}
         garmentType={garmentType}
+        garmentCutId={garmentCutId}
         garmentColorId={garmentColorId}
         printPlacement={printPlacement}
         printScale={printScale}
@@ -371,6 +447,7 @@ export function App() {
         cameraNonce={cameraNonce}
         autoRotate={autoRotate}
         onRegisterSnapshotFn={handleRegisterSnapshotFn}
+        onSceneReady={() => setSceneReady(true)}
       />
 
       {/* Drag & Drop Overlay */}
@@ -378,20 +455,20 @@ export function App() {
         <div className="fixed inset-0 z-50 bg-stone-950/80 backdrop-blur-md border-4 border-dashed border-amber-400 flex items-center justify-center pointer-events-none">
           <div className="text-center">
             <p className="font-display font-bold text-2xl text-amber-300">
-              Drop Your Portrait or Logo Here
+              {t.dropHintTitle}
             </p>
-            <p className="text-sm text-stone-300 mt-1">
-              Instant 3D texture projection onto canvas or apparel
-            </p>
+            <p className="text-sm text-stone-300 mt-1">{t.dropHintSub}</p>
           </div>
         </div>
       )}
 
-      {/* Top Navigation & Mode Switcher */}
+      {/* Top Navigation, Mode Switcher & RU/RO/EN Selector */}
       {!isFullscreenPreview && (
         <TopStudioHeader
           mode={mode}
           onChangeMode={handleChangeMode}
+          lang={lang}
+          onChangeLang={setLang}
           roomLighting={roomLighting}
           onToggleRoomLighting={() =>
             setRoomLighting((prev) =>
@@ -408,12 +485,15 @@ export function App() {
       {/* Left Artwork & Style Dock */}
       {!isFullscreenPreview && (
         <LeftArtworkDock
+          lang={lang}
           selectedPresetId={selectedPresetId}
           onSelectPreset={handleSelectPreset}
           uploadedImageName={uploadedImageName}
           uploadedPreviewUrl={uploadedPreviewUrl}
           onTriggerUpload={() => fileInputRef.current?.click()}
           onClearUpload={handleClearUpload}
+          textureFitMode={textureFitMode}
+          onChangeTextureFit={setTextureFitMode}
           artFilterId={artFilterId}
           onSelectFilter={setArtFilterId}
           customCaption={customCaption}
@@ -424,12 +504,35 @@ export function App() {
       {/* Right Configurator & Live Price Calculator */}
       {!isFullscreenPreview && (
         <RightConfiguratorDock
+          lang={lang}
           mode={mode}
           canvasSizeId={canvasSizeId}
           onSelectCanvasSize={(id) => {
             setCanvasSizeId(id);
+            if (id === 'custom') {
+              if (canvasOrientation === 'landscape' && customWidthCm < customHeightCm) {
+                setCustomWidthCm(customHeightCm);
+                setCustomHeightCm(customWidthCm);
+              } else if (canvasOrientation === 'portrait' && customWidthCm > customHeightCm) {
+                setCustomWidthCm(customHeightCm);
+                setCustomHeightCm(customWidthCm);
+              }
+            }
             setCameraNonce((n) => n + 1);
           }}
+          canvasOrientation={canvasOrientation}
+          onSelectOrientation={handleSelectOrientation}
+          customWidthCm={customWidthCm}
+          customHeightCm={customHeightCm}
+          onChangeCustomWidth={(cm) => {
+            setCustomWidthCm(cm);
+            setCanvasOrientation(cm > customHeightCm ? 'landscape' : 'portrait');
+          }}
+          onChangeCustomHeight={(cm) => {
+            setCustomHeightCm(cm);
+            setCanvasOrientation(customWidthCm > cm ? 'landscape' : 'portrait');
+          }}
+          resolvedDims={resolvedDims}
           frameStyleId={frameStyleId}
           onSelectFrameStyle={setFrameStyleId}
           canvasFinishId={canvasFinishId}
@@ -441,7 +544,9 @@ export function App() {
           scaleReference={scaleReference}
           onSelectScaleReference={setScaleReference}
           garmentType={garmentType}
-          onSelectGarmentType={setGarmentType}
+          onSelectGarmentType={handleSelectGarmentType}
+          garmentCutId={garmentCutId}
+          onSelectGarmentCut={setGarmentCutId}
           garmentColorId={garmentColorId}
           onSelectGarmentColor={setGarmentColorId}
           garmentSize={garmentSize}
@@ -465,61 +570,61 @@ export function App() {
         />
       )}
 
-      {/* Center Viewport Quick Camera Pill (when not in fullscreen) */}
+      {/* Center Viewport Quick Camera Pill */}
       {!isFullscreenPreview && (
         <div className="pointer-events-none fixed bottom-3 left-1/2 -translate-x-1/2 z-20 hidden lg:flex items-center">
           <div className="pointer-events-auto studio-glass rounded-full px-2 py-1 flex items-center gap-1 text-[10px]">
             <button
               type="button"
               onClick={() => handleSelectCameraAngle('front')}
-              className={`px-2 py-1 rounded-full font-semibold cursor-pointer transition-all ${
+              className={`px-2 py-1 rounded-full font-semibold cursor-pointer transition-all whitespace-nowrap ${
                 cameraAngle === 'front' && !autoRotate
                   ? 'bg-white/20 text-white'
                   : 'text-stone-300 hover:text-white'
               }`}
             >
-              Front
+              {t.camFront}
             </button>
             <button
               type="button"
               onClick={() => handleSelectCameraAngle('angle45')}
-              className={`px-2 py-1 rounded-full font-semibold cursor-pointer transition-all ${
+              className={`px-2 py-1 rounded-full font-semibold cursor-pointer transition-all whitespace-nowrap ${
                 cameraAngle === 'angle45' && !autoRotate
                   ? 'bg-white/20 text-white'
                   : 'text-stone-300 hover:text-white'
               }`}
             >
-              45° Angle
+              {t.camAngle45}
             </button>
             {mode === 'apparel' && (
               <button
                 type="button"
                 onClick={() => handleSelectCameraAngle('rear')}
-                className={`px-2 py-1 rounded-full font-semibold cursor-pointer transition-all ${
+                className={`px-2 py-1 rounded-full font-semibold cursor-pointer transition-all whitespace-nowrap ${
                   cameraAngle === 'rear' && !autoRotate
                     ? 'bg-white/20 text-white'
                     : 'text-stone-300 hover:text-white'
                 }`}
               >
-                Rear
+                {t.camRear}
               </button>
             )}
             <button
               type="button"
               onClick={() => handleSelectCameraAngle('macro')}
-              className={`px-2 py-1 rounded-full font-semibold cursor-pointer transition-all ${
+              className={`px-2 py-1 rounded-full font-semibold cursor-pointer transition-all whitespace-nowrap ${
                 cameraAngle === 'macro' && !autoRotate
                   ? 'bg-white/20 text-white'
                   : 'text-stone-300 hover:text-white'
               }`}
             >
-              Macro
+              {t.camMacro}
             </button>
             <span className="h-3 w-px bg-white/15 mx-0.5" />
             <button
               type="button"
               onClick={() => setAutoRotate((v) => !v)}
-              className={`px-2 py-1 rounded-full font-semibold flex items-center gap-1 cursor-pointer transition-all ${
+              className={`px-2 py-1 rounded-full font-semibold flex items-center gap-1 cursor-pointer transition-all whitespace-nowrap ${
                 autoRotate
                   ? 'bg-amber-400/25 text-amber-300'
                   : 'text-stone-300 hover:text-white'
@@ -532,10 +637,10 @@ export function App() {
             <button
               type="button"
               onClick={() => setIsFullscreenPreview(true)}
-              className="px-2 py-1 rounded-full font-semibold text-sky-300 hover:text-sky-200 flex items-center gap-1 cursor-pointer"
+              className="px-2 py-1 rounded-full font-semibold text-sky-300 hover:text-sky-200 flex items-center gap-1 cursor-pointer whitespace-nowrap"
             >
               <Eye className="w-3 h-3" />
-              <span>Fullscreen</span>
+              <span>{t.camFullscreen}</span>
             </button>
           </div>
         </div>
@@ -544,6 +649,7 @@ export function App() {
       {/* Fullscreen Preview Floating Controls */}
       {isFullscreenPreview && (
         <FullscreenPreviewBar
+          lang={lang}
           mode={mode}
           cameraAngle={cameraAngle}
           onSelectCameraAngle={handleSelectCameraAngle}
@@ -562,6 +668,7 @@ export function App() {
 
       {/* Order Checkout Drawer */}
       <OrderCheckoutDrawer
+        lang={lang}
         open={checkoutOpen}
         onClose={() => setCheckoutOpen(false)}
         snapshotDataUrl={checkoutSnapshotUrl}
